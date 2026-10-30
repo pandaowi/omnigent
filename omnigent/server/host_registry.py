@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import secrets
 import threading
 import time
@@ -942,8 +943,10 @@ class HostRegistry:
             replaced or its owner does not match captured authority.
         """
         expected = _expected_host_owner.get()
+        shared_host = os.environ.get("OMNIGENT_SHARED_HOST", "1").lower() in ("1", "true", "yes", "on")
         if (
-            expected is not None
+            not shared_host
+            and expected is not None
             and expected.workspace_id == current_workspace_id()
             and (conn.workspace_id, conn.owner, conn.account_generation)
             != (expected.workspace_id, expected.user_id, expected.generation)

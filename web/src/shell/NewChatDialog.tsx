@@ -1,4 +1,5 @@
 import { useLoadedConversations } from "@/hooks/useSidebarData";
+import { useUserExecution } from "@/hooks/useUserExecution";
 import { useComposerContext } from "@/hooks/useComposerContext";
 import { useSlashCompletion } from "@/hooks/useSlashCompletion";
 import { useMcpRegistrySelection } from "@/hooks/useMcpRegistry";
@@ -2141,6 +2142,8 @@ export function NewChatLandingScreen() {
     conversationsData !== undefined &&
     conversationsData.pages.every((page) => page.data.length === 0);
 
+  const { data: userExec } = useUserExecution();
+
   const agentList = useMemo(
     () =>
       selectableSessionAgents(
@@ -2157,10 +2160,39 @@ export function NewChatLandingScreen() {
   // under "Agents". ACP agents aren't native, so they fold into "More". The
   // user's own agents stay under "Agents" even on a native harness, so one never
   // passes for a harness row (or for the Claude Code wrapper Smart Routing binds).
-  const { harnesses: harnessEntries, agents: agentEntries } = useMemo(
+  const { harnesses: rawHarnessEntries, agents: agentEntries } = useMemo(
     () => partitionPickerEntries(agentList),
     [agentList],
   );
+
+  const harnessEntries = useMemo(() => {
+    let list = rawHarnessEntries;
+    if (userExec?.allowed_harnesses && userExec.allowed_harnesses.length > 0) {
+      const allowed = userExec.allowed_harnesses;
+      list = list.filter((a) => {
+        const h = nativeCodingAgentForAvailableAgent(a)?.harness ?? a.harness ?? "";
+        return allowed.some(
+          (ah) =>
+            ah === h ||
+            (ah.startsWith("antigravity") && h.startsWith("antigravity")) ||
+            (ah.startsWith("codex") && h.startsWith("codex")) ||
+            (ah.startsWith("claude") && h.startsWith("claude")) ||
+            (ah.startsWith("cursor") && h.startsWith("cursor")),
+        );
+      });
+    } else if (userExec?.harness) {
+      const target = userExec.harness;
+      list = list.filter((a) => {
+        const h = nativeCodingAgentForAvailableAgent(a)?.harness ?? a.harness ?? "";
+        return (
+          h === target ||
+          (target.startsWith("antigravity") && h.startsWith("antigravity")) ||
+          (target.startsWith("codex") && h.startsWith("codex"))
+        );
+      });
+    }
+    return list;
+  }, [rawHarnessEntries, userExec]);
 
   // "Create custom agent" dialog state and pending bundle. When the user
   // creates a custom agent via the dialog, the bundle input is stored
@@ -2333,6 +2365,11 @@ export function NewChatLandingScreen() {
   const [selectedHostId, setSelectedHostId] = useState<string | null>(
     () => restoredDraft?.selectedHostId ?? null,
   );
+  useEffect(() => {
+    if (userExec?.host_id && selectedHostId === null) {
+      setSelectedHostId(userExec.host_id);
+    }
+  }, [userExec?.host_id, selectedHostId]);
   // Sessions on the selected host — fetched only when a host is selected,
   // to avoid registering hundreds of sessions into the health poll at idle.
   const { data: directorySessions } = useDirectorySessions(selectedHostId !== null);
@@ -3018,6 +3055,18 @@ export function NewChatLandingScreen() {
     rememberedHarnessResolution.source === "fallback"
       ? rememberedHarnessResolution
       : null;
+  const assignedAgentId = useMemo(() => {
+    if (!userExec?.harness) return null;
+    const match = agentList.find(
+      (a) =>
+        a.harness === userExec.harness ||
+        a.name === `${userExec.harness}-ui` ||
+        (userExec.harness === "antigravity-native" &&
+          (a.name.includes("antigravity") || a.harness === "antigravity-native")),
+    );
+    return match?.id ?? null;
+  }, [agentList, userExec]);
+
   const defaultEffectiveAgentId =
     pickedAgentId === PENDING_AGENT_ID && pendingAgentAllowedOnTarget
       ? PENDING_AGENT_ID
@@ -3028,8 +3077,10 @@ export function NewChatLandingScreen() {
           : (agentsLoading || prefillConfig === undefined) &&
               agentList.some((agent) => agent.id === cachedPickerOptions?.agent.id)
             ? cachedPickerOptions!.agent.id
-            : (agentList[0]?.id ?? null);
-  const effectiveAgentId = automaticHarnessFallback?.candidate?.value.id ?? defaultEffectiveAgentId;
+            : (assignedAgentId ?? agentList[0]?.id ?? null);
+  const effectiveAgentId = agentExplicitlySelectedRef.current
+    ? (automaticHarnessFallback?.candidate?.value.id ?? defaultEffectiveAgentId)
+    : (assignedAgentId ?? automaticHarnessFallback?.candidate?.value.id ?? defaultEffectiveAgentId);
   const selectedAgent = useMemo(
     () =>
       effectiveAgentId === PENDING_AGENT_ID && pendingAgent
@@ -3067,6 +3118,12 @@ export function NewChatLandingScreen() {
     error: hostCodexModelsError,
   } = useHostModelOptions(selectedHostId, "codex-native", canLoadHostModels("codex-native"), {
     poll: selectedNativeHarness === "codex-native",
+  });
+  const {
+    data: hostAgyModelOptions,
+    isLoading: hostAgyModelsLoading,
+  } = useHostModelOptions(selectedHostId, "antigravity-native", canLoadHostModels("antigravity-native"), {
+    poll: selectedNativeHarness === "antigravity-native",
   });
   const { data: hostPiModelOptions, isLoading: hostPiModelsLoading } = useHostModelOptions(
     selectedHostId,
@@ -3111,6 +3168,12 @@ export function NewChatLandingScreen() {
     hostCodexModelOptions,
     hostCodexModelsLoading,
     cachedHostModels?.codex,
+  );
+  const availableAgyModels = availableHostModels(
+    "antigravity-native",
+    hostAgyModelOptions,
+    hostAgyModelsLoading,
+    cachedHostModels?.antigravity,
   );
   const availablePiModels = availableHostModels(
     "pi-native",
@@ -3249,6 +3312,10 @@ export function NewChatLandingScreen() {
     () => (sandboxSelected ? (sandboxCatalog ?? []) : (availableCodexModels ?? [])),
     [availableCodexModels, sandboxSelected, sandboxCatalog],
   );
+  const agyModelOptions = useMemo(
+    () => (sandboxSelected ? (sandboxCatalog ?? []) : (availableAgyModels ?? [])),
+    [availableAgyModels, sandboxSelected, sandboxCatalog],
+  );
   // Devin model *families* (claude-opus-5, swe-2, …). Effort is a separate
   // axis Omnigent carries as reasoning_effort and the runner recombines onto
   // the id at launch (resolve_devin_launch_model), so the list stays short
@@ -3360,16 +3427,24 @@ export function NewChatLandingScreen() {
       return [{ label: "Permission mode", value: AUTO_PERMISSION_MODE.label }];
     }
     if (supportsModelPicker && !supportsPermissionMode) {
+      const isAgy = selectedNativeHarness === "antigravity-native";
+      const modelList = isAgy ? agyModelOptions : piModelOptions;
+      const pickedRow = modelList.find((model) => model.id === pickedModel);
       const modelValue =
-        piModelOptions.find((model) => model.id === pickedModel)?.displayName ??
-        defaultModelLabel(piModelOptions);
+        (pickedRow ? nativeModelLabel(pickedRow) : null) ??
+        defaultModelLabel(modelList);
       const thinkingLevelValue = normalizeEffortLabel(pickedEffort);
+      const skipValue =
+        supportsAgySkipPermissions
+          ? (AGY_NATIVE_SKIP_MODES.find((m) => m.value === agySkipMode)?.label ?? agySkipMode)
+          : null;
       return [
         { label: "Model", value: modelValue },
+        ...(skipValue ? [{ label: "Permission mode", value: skipValue }] : []),
         ...(selectedNativeHarness === "pi-native" && thinkingLevelValue
           ? [{ label: "Thinking level", value: thinkingLevelValue }]
           : []),
-        ...sourceRows(piModelOptions),
+        ...sourceRows(modelList),
       ];
     }
     if (supportsPermissionMode) {
@@ -3478,6 +3553,8 @@ export function NewChatLandingScreen() {
     claudeModelOptions,
     codexModelOptions,
     piModelOptions,
+    agyModelOptions,
+    userExec,
     pickedEffort,
     permissionMode,
     approvalMode,
@@ -3505,9 +3582,11 @@ export function NewChatLandingScreen() {
         ? devinModelOptions
         : selectedNativeHarness === "pi-native"
           ? piModelOptions
-          : selectedNativeHarness === "codex-native"
-            ? codexModelOptions
-            : [];
+          : selectedNativeHarness === "antigravity-native"
+            ? agyModelOptions
+            : selectedNativeHarness === "codex-native"
+              ? codexModelOptions
+              : [];
   const pickerModelsLoading =
     sandboxCatalogPending ||
     (!sandboxSelected &&
@@ -3975,6 +4054,7 @@ export function NewChatLandingScreen() {
   const hostModelCatalogs: Record<string, NativeModelOption[] | undefined> = {
     "claude-native": availableClaudeModels,
     "codex-native": availableCodexModels,
+    "antigravity-native": availableAgyModels,
     "pi-native": availablePiModels,
     "devin-native": hostDevinModelOptions,
   };
@@ -3994,11 +4074,13 @@ export function NewChatLandingScreen() {
           ? claudeModelOptions
           : native.iconKind === "codex"
             ? codexModelOptions
-            : native.iconKind === "pi"
-              ? piModelOptions
-              : native.iconKind === "devin"
-                ? devinModelOptions
-                : [];
+            : native.iconKind === "antigravity"
+              ? agyModelOptions
+              : native.iconKind === "pi"
+                ? piModelOptions
+                : native.iconKind === "devin"
+                  ? devinModelOptions
+                  : [];
       const savedFusion = fusionOption(catalog)?.fusion;
       // Preserve saved IDs while host data is absent; an empty result is authoritative.
       const hostCatalogUnavailable =
@@ -4115,9 +4197,11 @@ export function NewChatLandingScreen() {
         ? claudeModelOptions
         : selectedNativeHarness === "devin-native"
           ? devinModelOptions
-          : selectedNativeHarness === "codex-native"
-            ? codexModelOptions
-            : [];
+          : selectedNativeHarness === "antigravity-native"
+            ? agyModelOptions
+            : selectedNativeHarness === "codex-native"
+              ? codexModelOptions
+              : [];
   const projectDefaultModelValid =
     projectDefaultModel != null && projectModelVocab.some((m) => m.id === projectDefaultModel)
       ? projectDefaultModel
@@ -4243,7 +4327,12 @@ export function NewChatLandingScreen() {
       // A remembered routing "on" outranks a remembered concrete model, and
       // also drops any model/effort left in the shared state (e.g. seeded for
       // Claude Code before the harness switch).
+      const userAssignedCodexModel =
+        !userPickedModelRef.current && userExec?.default_model && codexModelOptions.some((m) => m.id === userExec.default_model)
+          ? userExec.default_model
+          : null;
       const seededCodexModel =
+        userAssignedCodexModel ??
         (selectedNativeHarness === "codex-native" ? projectSeed(codexModelOptions) : null) ??
         (!storedRoutingOn &&
         selectedNativeHarness === "codex-native" &&
@@ -4270,8 +4359,25 @@ export function NewChatLandingScreen() {
       );
     } else if (supportsCursorMode) {
       setCursorExecMode(resolve(CURSOR_NATIVE_EXEC_MODES, CURSOR_NATIVE_DEFAULT_EXEC_MODE));
-    } else if (supportsAgySkipPermissions) {
-      setAgySkipMode(resolve(AGY_NATIVE_SKIP_MODES, AGY_NATIVE_DEFAULT_SKIP_MODE));
+    } else if (supportsAgySkipPermissions || selectedNativeHarness === "antigravity-native") {
+      if (supportsAgySkipPermissions) {
+        setAgySkipMode(resolve(AGY_NATIVE_SKIP_MODES, AGY_NATIVE_DEFAULT_SKIP_MODE));
+      }
+      const userAssignedAgyModel =
+        !userPickedModelRef.current &&
+        userExec?.default_model &&
+        agyModelOptions.some((m) => m.id === userExec.default_model)
+          ? userExec.default_model
+          : null;
+      const seededAgyModel =
+        userAssignedAgyModel ??
+        projectSeed(agyModelOptions) ??
+        (!storedRoutingOn &&
+        stored.model != null &&
+        agyModelOptions.some((m) => m.id === stored.model)
+          ? stored.model
+          : (agyModelOptions[0]?.id ?? ""));
+      setPickedModel(seededAgyModel);
     } else if (supportsDevinPermission) {
       setDevinPermissionMode(
         resolve(DEVIN_NATIVE_PERMISSION_MODES, DEVIN_NATIVE_DEFAULT_PERMISSION_MODE),
@@ -4286,6 +4392,8 @@ export function NewChatLandingScreen() {
     claudeModelOptions,
     codexModelOptions,
     piModelOptions,
+    agyModelOptions,
+    userExec,
     projectDefaultModel,
     projectDefaultEffort,
     readRememberedHarnessOptions,

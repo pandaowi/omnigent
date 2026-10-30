@@ -4852,6 +4852,15 @@ def create_app(
             prefix="/v1",
             tags=["hosts"],
         )
+        from omnigent.server.routes.organizations import create_organizations_router
+        app.include_router(
+            create_organizations_router(
+                auth_provider=auth_provider,
+                permission_store=permission_store,
+            ),
+            prefix="/v1",
+            tags=["organizations"],
+        )
         app.include_router(
             create_skills_router(
                 host_registry,

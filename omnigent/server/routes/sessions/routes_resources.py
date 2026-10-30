@@ -9,6 +9,7 @@ import functools
 import json
 import mimetypes
 import ntpath
+import posixpath
 import re
 import time
 import urllib.parse
@@ -787,6 +788,17 @@ def register_resources_routes(
             f"/{_runner_environment_segment(environment_id)}/filesystem/{encoded}"
         )
 
+    def _is_absolute_path(path: str) -> bool:
+        """Check whether path is absolute under POSIX or Windows rules."""
+        if not path:
+            return False
+        return (
+            path.startswith("/")
+            or path.startswith("\\")
+            or posixpath.isabs(path)
+            or ntpath.isabs(path)
+        )
+
     def _browse_level(client_path: str, *, within_workspace: int) -> int:
         """Permission level a filesystem request needs for *client_path*.
 
@@ -806,26 +818,11 @@ def register_resources_routes(
         asking, so it does not try to — it enforces the sandbox grants, this
         enforces identity.
 
-        ``ntpath.isabs`` is used deliberately, and on every platform: it is
-        true for BOTH a POSIX leading slash (the wire form this API defines)
-        and a Windows drive or UNC root. A gate about identity has to fail
-        closed on anything that could be absolute *anywhere*, not just on the
-        shape the current deployment happens to send — otherwise a
-        ``C:\\Users\\...`` path would slip through at the collaborator level
-        and be stopped only by the runner rejecting it further down.
-
-        Note this is the AUTHORIZATION predicate, not the wire-format one.
-        Deciding how to encode the path for the runner stays
-        ``startswith("/")``, because that is a URL question and URLs use ``/``
-        on every platform. The two can disagree only for a Windows-style
-        path, where the result is a stricter gate plus a runner-side refusal
-        — closed on both counts.
-
         :param client_path: Client-supplied path; a leading ``/`` is absolute.
         :param within_workspace: Level required for a workspace-relative path.
         :returns: The required permission level.
         """
-        return LEVEL_OWNER if ntpath.isabs(client_path) else within_workspace
+        return LEVEL_OWNER if _is_absolute_path(client_path) else within_workspace
 
     async def _authorize_browse_read(
         session_id: str,
@@ -883,7 +880,7 @@ def register_resources_routes(
         :returns: ``(conversation, owner)``.
         :raises OmnigentError: 401/403/404 on auth failure.
         """
-        if ntpath.isabs(client_path):
+        if _is_absolute_path(client_path):
             return await _validate_session(session_id, request, LEVEL_OWNER), True
         if request is None:
             return await _validate_session(session_id, request, LEVEL_READ), True
@@ -2787,7 +2784,12 @@ def register_resources_routes(
             params["exclude"] = exclude
 
         absolute, path = _resolve_browse_path(request, path)
-        conv = await _authorize_browse_read(session_id, request, path)
+        conv, owner = await _authorize_browse_read_with_owner(session_id, request, path)
+        if absolute and not owner:
+            raise OmnigentError(
+                "Access denied: Only session owners can search outside the workspace.",
+                code=ErrorCode.FORBIDDEN,
+            )
 
         qs = urllib.parse.urlencode(params)
         suffix = ""
@@ -3045,6 +3047,11 @@ def register_resources_routes(
         # way around the owner-scoped host filesystem endpoint.
         absolute, relative_path = _resolve_browse_path(request, relative_path)
         conv, owner = await _authorize_browse_read_with_owner(session_id, request, relative_path)
+        if absolute and not owner:
+            raise OmnigentError(
+                "Access denied: Only session owners can browse outside the workspace.",
+                code=ErrorCode.FORBIDDEN,
+            )
 
         # The owner may browse a workspace symlink's outside target by absolute
         # path already, so the runner is told it may follow the link; everyone

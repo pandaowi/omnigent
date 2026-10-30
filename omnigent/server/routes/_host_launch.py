@@ -28,7 +28,7 @@ from fastapi import HTTPException
 
 from omnigent.entities import Conversation
 from omnigent.errors import ErrorCode, OmnigentError
-from omnigent.server.auth import LEVEL_OWNER
+from omnigent.server.auth import LEVEL_EDIT, LEVEL_OWNER
 from omnigent.server.host_registry import HostConnection, HostRegistry
 from omnigent.server.permissions import check_session_access
 from omnigent.stores import ConversationStore
@@ -147,8 +147,10 @@ def resolve_host_owner(
     host = host_store.get_host(host_id)
     if host is None:
         raise HTTPException(status_code=404, detail="host not found")
-    if user_id is not None and host.user_id != user_id:
-        raise HTTPException(status_code=403, detail="not your host")
+    from omnigent.server.organization_store import get_organization_store
+    org_store = get_organization_store()
+    if not org_store.is_user_authorized_for_host(user_id=user_id, host_id=host_id, host_owner=host.user_id):
+        raise HTTPException(status_code=403, detail="not your host or not assigned to this host")
     return host
 
 
@@ -271,15 +273,13 @@ def resolve_host_launch(
     if conv is None:
         raise HTTPException(status_code=404, detail="session not found")
 
-    # A runner executes tools as the session's driver, so only the
-    # session owner may bind one. A non-owner has no owner-level grant
-    # and is rejected. 404 (not 403) avoids leaking the existence of
-    # other users' sessions.
+    # A runner executes tools as the session driver. Either the session owner
+    # or an invited collaborator with edit permission may bind/launch one.
     if permission_store is not None:
         allowed = check_session_access(
             user_id,
             session_id,
-            LEVEL_OWNER,
+            LEVEL_EDIT,
             permission_store,
             conversation_store,
             conversation=conv,

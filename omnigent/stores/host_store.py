@@ -15,6 +15,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
@@ -766,28 +767,34 @@ class HostStore:
             if row.status == online_code and row.updated_at >= ref - HOST_LIVENESS_TTL_S
         }
 
-    def list_hosts(self, user_id: str) -> list[Host]:
+    def list_hosts(self, user_id: str, is_admin: bool = False) -> list[Host]:
         """
-        List all hosts owned by a specific user.
+        List all hosts accessible by a user (owned, assigned directly, assigned via org, or all if admin).
 
         Returns both online and offline hosts, ordered by
         ``updated_at`` descending (most recently active first).
 
-        :param user_id: User ID to filter by, e.g.
-            ``"corey.zumar@databricks.com"``.
+        :param user_id: User ID to filter by.
+        :param is_admin: Whether caller has server admin privileges.
         :returns: List of :class:`Host` entities.
         """
+        from omnigent.server.organization_store import get_organization_store
+
+        shared_host = os.environ.get("OMNIGENT_SHARED_HOST", "").lower() in ("1", "true", "yes", "on")
+        org_store = get_organization_store()
+        authorized_ids = org_store.get_user_authorized_host_ids(user_id) if not (is_admin or shared_host) else None
+
         with self._session("list_hosts") as session:
-            rows = (
-                session.query(SqlHost)
-                .filter(
-                    SqlHost.workspace_id == current_workspace_id(),
-                    SqlHost.user_id == user_id,
-                    SqlHost.deleted_at.is_(None),
-                )
-                .order_by(SqlHost.updated_at.desc())
-                .all()
+            query = session.query(SqlHost).filter(
+                SqlHost.workspace_id == current_workspace_id(),
+                SqlHost.deleted_at.is_(None),
             )
+            if not is_admin and not shared_host:
+                if authorized_ids:
+                    query = query.filter(or_(SqlHost.user_id == user_id, SqlHost.host_id.in_(authorized_ids)))
+                else:
+                    query = query.filter(SqlHost.user_id == user_id)
+            rows = query.order_by(SqlHost.updated_at.desc()).all()
             return [_row_to_host(row) for row in rows]
 
     def list_current_managed_sandbox_hosts_page(
@@ -1283,10 +1290,17 @@ class HostStore:
                 )
                 .with_for_update()
             ).scalar_one_or_none()
+            from omnigent.server.organization_store import get_organization_store
+            org_store = get_organization_store()
+            is_authorized = org_store.is_user_authorized_for_host(
+                user_id=owner,
+                host_id=host_id,
+                host_owner=host.user_id if host else None,
+            )
             if (
                 host is None
                 or host.deleted_at is not None
-                or (owner is not None and host.user_id != owner)
+                or not is_authorized
             ):
                 raise OmnigentError("host is no longer available", code=ErrorCode.UNAUTHORIZED)
             meta = session.execute(
