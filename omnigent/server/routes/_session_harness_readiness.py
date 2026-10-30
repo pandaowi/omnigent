@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 from omnigent.entities import Conversation
 from omnigent.errors import ErrorCode, OmnigentError
@@ -54,8 +55,9 @@ async def validate_create_harness_readiness(
         host = None
     if host is None:
         return
-    # Sharing a parent session does not grant access to its host telemetry.
-    if user_id is not None and host.user_id != user_id:
+    # Sharing a parent session does not grant access to its host telemetry, unless shared host is on.
+    shared_host = os.environ.get("OMNIGENT_SHARED_HOST", "1").lower() in ("1", "true", "yes", "on")
+    if not shared_host and user_id is not None and host.user_id != user_id:
         return
     available, reason = harness_launch_availability(harness, host.configured_harnesses)
     if available is not False:

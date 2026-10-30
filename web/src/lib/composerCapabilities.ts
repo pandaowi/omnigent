@@ -21,7 +21,16 @@ const PI_NATIVE_EFFORT_LEVELS = [
 ] as const;
 
 export type NativeModelPickerKind =
-  "claude" | "codex" | "cursor" | "kiro" | "opencode" | "pi" | "devin" | "acp" | "configured";
+  | "claude"
+  | "codex"
+  | "antigravity"
+  | "cursor"
+  | "kiro"
+  | "opencode"
+  | "pi"
+  | "devin"
+  | "acp"
+  | "configured";
 
 /** Preserve inherited effort; clear an explicit choice that the new model cannot use. */
 export function effortAfterModelChange(
@@ -38,7 +47,7 @@ export function selectedModelForPicker(
   requestedModel: string | null,
   reportedModel: string | null,
 ): string | null {
-  if (kind === "claude" || kind === "codex") {
+  if (kind === "claude" || kind === "codex" || kind === "antigravity") {
     const model = reportedModel || requestedModel;
     return model ? (findModelLabelOption(options, model)?.id ?? model) : null;
   }
@@ -123,6 +132,8 @@ export function modelPickerKindForConv(
       return "claude";
     case "codex-native-ui":
       return "codex";
+    case "antigravity-native-ui":
+      return "antigravity";
     case "cursor-native-ui":
       return "cursor";
     case "kiro-native-ui":

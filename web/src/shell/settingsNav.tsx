@@ -17,6 +17,7 @@ import {
   KeyboardIcon,
   PaletteIcon,
   PlugIcon,
+  ServerIcon,
   SettingsIcon,
   Share2Icon,
   ShieldCheckIcon,
@@ -46,6 +47,7 @@ export type SettingsSectionId =
   | "import"
   | "account"
   | "members"
+  | "runners"
   | "policies"
   | "sharing"
   | "archived"
@@ -64,6 +66,7 @@ const SECTION_IDS: readonly SettingsSectionId[] = [
   "import",
   "account",
   "members",
+  "runners",
   "policies",
   "sharing",
   "archived",
@@ -162,6 +165,7 @@ export function settingsNavGroups(
     // to a solo user's own sessions too.
     const adminItems: SettingsNavItem[] = [];
     if (!isSingleUser) adminItems.push({ id: "members", label: "Members", icon: UsersIcon });
+    if (!isSingleUser) adminItems.push({ id: "runners", label: "Runners & Teams", icon: ServerIcon });
     adminItems.push({ id: "policies", label: "Policies", icon: ShieldCheckIcon });
     if (!isSingleUser) adminItems.push({ id: "sharing", label: "Sharing", icon: Share2Icon });
     groups.push({ title: "Admin", items: adminItems });

@@ -62,6 +62,7 @@ import {
 } from "@/hooks/useNativeServerSwitcher";
 import { isIOSShell, onNativeSidebarDrag, setNativeServerSwitcherHidden } from "@/lib/nativeBridge";
 import { type Agent, useSessionAgent, useAgents } from "@/hooks/useAgents";
+import { useUserExecution } from "@/hooks/useUserExecution";
 import { agentDisplayLabel } from "@/components/AgentInfo";
 import {
   BRAIN_HARNESS_LABELS,
@@ -563,8 +564,18 @@ export function ChatPage() {
 
   // Picker selection. ChatPage stays mounted across `/` to `/c/:id`,
   // so the pick survives sidebar clicks; resets on full page reload.
+  const { data: userExec } = useUserExecution();
+  const assignedAgent = userExec?.harness
+    ? agents?.find(
+        (a) =>
+          a.harness === userExec.harness ||
+          a.name === `${userExec.harness}-ui` ||
+          (userExec.harness === "antigravity-native" &&
+            (a.name.includes("antigravity") || a.harness === "antigravity-native")),
+      )
+    : null;
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const agentId = selectedAgentId ?? agents?.[0]?.id ?? null;
+  const agentId = selectedAgentId ?? assignedAgent?.id ?? agents?.[0]?.id ?? null;
 
   // Sync the picker to the conversation's bound agent when switching.
   // `boundAgentId` is `null` on `/`, during the snapshot fetch, and
@@ -915,13 +926,21 @@ export function ChatPage() {
       : sandboxPreviewOptions;
   // Keep the store's array reference unless pre-launch rows exist: a fresh []
   // would re-render every options consumer on each streaming/liveness tick.
-  const codexModelOptions =
+  const rawCodexModelOptions =
     !activeSession?.inferenceConfigured &&
     sessionModelOptions.length === 0 &&
     preLaunchOptions != null &&
     preLaunchOptions.length > 0
       ? preLaunchOptions
       : sessionModelOptions;
+  const userAllowedModels = userExec?.allowed_models;
+  const codexModelOptions = useMemo(() => {
+    if (!userAllowedModels || userAllowedModels.length === 0) return rawCodexModelOptions;
+    const allowedSet = new Set(userAllowedModels);
+    return rawCodexModelOptions.filter(
+      (opt) => allowedSet.has(opt.id) || (opt.model && allowedSet.has(opt.model))
+    );
+  }, [rawCodexModelOptions, userAllowedModels]);
   const modelsFromLaunchPreview =
     sandboxPreviewOptions !== undefined && codexModelOptions === sandboxPreviewOptions;
 
@@ -2205,6 +2224,7 @@ export function composerHarnessLabel(
   if (nativeSubagent) return nativeSubagent.displayName;
   if (modelPickerKind === "claude") return "Claude";
   if (modelPickerKind === "codex") return "Codex";
+  if (modelPickerKind === "antigravity") return "Antigravity";
   if (modelPickerKind === "cursor") return "Cursor";
   if (modelPickerKind === "kiro") return "Kiro";
   if (modelPickerKind === "opencode") return "OpenCode";
@@ -5229,6 +5249,7 @@ function useResolvedComposerModel(
   const usesServerModelOptions =
     modelPickerKind === "claude" ||
     modelPickerKind === "codex" ||
+    modelPickerKind === "antigravity" ||
     modelPickerKind === "cursor" ||
     modelPickerKind === "kiro" ||
     modelPickerKind === "pi" ||
@@ -5251,7 +5272,8 @@ function useResolvedComposerModel(
   // highlight, and the hover summary all resolve from it alone. The user's
   // request (`sessionModelOverride`) is input, never display state — rendering
   // a request as if it were truth is exactly how a record/pane divergence hides.
-  const isReportedModelPicker = modelPickerKind === "claude" || modelPickerKind === "codex";
+  const isReportedModelPicker =
+    modelPickerKind === "claude" || modelPickerKind === "codex" || modelPickerKind === "antigravity";
   const pickerSelectedModel = selectedModelForPicker(
     modelPickerKind,
     codexModelOptions,

@@ -534,12 +534,17 @@ def resolve_browse_target(
     """
     if "\x00" in absolute_path:
         raise InvalidPath("Path contains NUL bytes")
+    # Strict jail check: if strict workspace jail or session isolation is enabled,
+    # the runner does not allow browsing outside the workspace root grants.
+    strict_jail = os.environ.get("OMNIGENT_STRICT_WORKSPACE_JAIL", "").lower() in ("1", "true", "yes") or (
+        os.environ.get("OMNIGENT_RUNNER_ISOLATE_SESSION", "").lower() in ("1", "true", "yes")
+    )
     # An unconfined environment's reach IS the filesystem root — stating it as
     # a root keeps every return below a containment check, rather than having
     # one branch hand back an unchecked path.
     allowed = (
         [*roots, ReachableRoot(path=Path("/"), access="write", origin="unconfined", kind="tree")]
-        if unconfined
+        if (unconfined and not strict_jail)
         else roots
     )
     for root in allowed:

@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import secrets
 import weakref
 from typing import Any, cast
@@ -215,6 +216,13 @@ def _require_harness_setup_support(host_conn: HostConnection, action: str) -> No
     )
 
 
+def _check_host_owner(host: Host, user_id: str | None, is_admin: bool = False) -> None:
+    from omnigent.server.organization_store import get_organization_store
+    org_store = get_organization_store()
+    if not org_store.is_user_authorized_for_host(user_id=user_id, host_id=host.host_id, host_owner=host.user_id, is_admin=is_admin):
+        raise HTTPException(status_code=403, detail="not your host or not assigned to this host")
+
+
 async def _connected_owned_host(
     *,
     request: Request,
@@ -222,14 +230,15 @@ async def _connected_owned_host(
     auth_provider: AuthProvider | None,
     host_registry: HostRegistry,
     host_store: HostStore,
+    permission_store: PermissionStore | None = None,
 ) -> tuple[Host, HostConnection]:
     """Resolve an owner-authorized host and require its live local tunnel."""
     user_id = require_user(request, auth_provider)
     host = await asyncio.to_thread(host_store.get_host, host_id)
     if host is None:
         raise HTTPException(status_code=404, detail="host not found")
-    if user_id is not None and host.user_id != user_id:
-        raise HTTPException(status_code=403, detail="not your host")
+    is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+    _check_host_owner(host, user_id, is_admin=is_admin)
     conn = host_registry.get(host.host_id)
     if conn is None:
         raise _host_absent_error(host)
@@ -886,10 +895,11 @@ def create_hosts_router(
         # only when auth is disabled entirely — there the single-user
         # server's hosts are owned by the reserved "local" user.
         user_id = require_user(request, auth_provider)
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
         if user_id is None:
-            hosts = await asyncio.to_thread(host_store.list_hosts, "local")
+            hosts = await asyncio.to_thread(host_store.list_hosts, "local", is_admin=True)
         else:
-            hosts = await asyncio.to_thread(host_store.list_hosts, user_id)
+            hosts = await asyncio.to_thread(host_store.list_hosts, user_id, is_admin=is_admin)
 
         # One clock for the whole batch so every host is classified
         # against a consistent "now" (host_is_live's documented idiom).
@@ -963,8 +973,8 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        if user_id is not None and host.user_id != user_id:
-            raise HTTPException(status_code=403, detail="not your host")
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        _check_host_owner(host, user_id, is_admin=is_admin)
 
         # Status comes from the DB so the answer is consistent across
         # replicas, gated on the liveness freshness window — see
@@ -1022,18 +1032,33 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        if user_id is not None and host.user_id != user_id:
-            raise HTTPException(status_code=403, detail="not your host")
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        _check_host_owner(host, user_id, is_admin=is_admin)
         conn = host_registry.get(host.host_id)
         if conn is None:
             raise _host_absent_error(host)
         _require_harness_setup_support(conn, "pre-launch model listing")
 
-        result = await _proxy_model_options(
-            host_registry=host_registry,
-            host_conn=conn,
-            harness=canonicalize_harness(harness) or harness,
-        )
+        canon = canonicalize_harness(harness) or harness
+        if canon in ("antigravity-native", "antigravity", "native-antigravity", "native-agy", "agy-native", "agy"):
+            agy_models = [
+                {"id": "gemini-3.8-flash-high", "displayName": "Gemini 3.8 Flash High"},
+                {"id": "gemini-2.5-pro", "displayName": "Gemini 2.5 Pro"},
+                {"id": "gemini-2.5-flash", "displayName": "Gemini 2.5 Flash"},
+                {"id": "gemini-2.0-flash", "displayName": "Gemini 2.0 Flash"},
+                {"id": "gemini-1.5-pro", "displayName": "Gemini 1.5 Pro"},
+            ]
+            result = {
+                "status": "ok",
+                "models": agy_models,
+                "routable_models": [m["id"] for m in agy_models],
+            }
+        else:
+            result = await _proxy_model_options(
+                host_registry=host_registry,
+                host_conn=conn,
+                harness=canon,
+            )
         if result.get("status") != "ok":
             raise HTTPException(
                 status_code=502,
@@ -1042,6 +1067,56 @@ def create_hosts_router(
         models = result.get("models")
         routable = result.get("routable_models")
         error = result.get("error")
+
+        # Filter models and harness if not admin and not owner
+        if not is_admin and user_id != host.user_id:
+            from omnigent.server.organization_store import get_organization_store
+            org_store = get_organization_store()
+            user_exec = await asyncio.to_thread(org_store.get_user_execution_assignment, user_id)
+            if user_exec:
+                assigned_harness = user_exec.get("harness")
+                allowed_harnesses = user_exec.get("allowed_harnesses")
+                if not allowed_harnesses and assigned_harness:
+                    allowed_harnesses = [assigned_harness]
+
+                if allowed_harnesses:
+                    def _harness_family(h: str) -> str:
+                        c = canonicalize_harness(h) or h
+                        if c in ("antigravity-native", "antigravity", "native-antigravity", "native-agy", "agy-native", "agy"):
+                            return "antigravity"
+                        if c in ("codex-native", "codex", "native-codex"):
+                            return "codex"
+                        if c in ("claude-native", "claude", "native-claude"):
+                            return "claude"
+                        if c in ("cursor-native", "cursor", "native-cursor"):
+                            return "cursor"
+                        return c
+
+                    target_family = _harness_family(canon)
+                    allowed_families = {_harness_family(ah) for ah in allowed_harnesses}
+                    if target_family not in allowed_families:
+                        # User is not permitted this harness
+                        return HostModelOptionsResponse(models=[], routable_models=[])
+
+                allowed = user_exec.get("allowed_models")
+                if allowed is not None:
+                    allowed_set = set(allowed)
+                    if isinstance(models, list):
+                        models = [
+                            m for m in models
+                            if isinstance(m, dict) and (
+                                m.get("id") in allowed_set
+                                or m.get("model") in allowed_set
+                                or any(str(m.get("id", "")).startswith(a) for a in allowed_set)
+                            )
+                        ]
+                    if isinstance(routable, list):
+                        routable = [
+                            m for m in routable
+                            if isinstance(m, str) and (
+                                m in allowed_set or any(m.startswith(a) for a in allowed_set)
+                            )
+                        ]
         return HostModelOptionsResponse(
             models=(
                 [model for model in models if isinstance(model, dict)]
@@ -1558,8 +1633,7 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        if user_id is not None and host.user_id != user_id:
-            raise HTTPException(status_code=403, detail="not your host")
+        _check_host_owner(host, user_id)
 
         if "\x00" in path:
             raise HTTPException(
@@ -1639,8 +1713,7 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        if user_id is not None and host.user_id != user_id:
-            raise HTTPException(status_code=403, detail="not your host")
+        _check_host_owner(host, user_id)
 
         path = body.path
         if not path.strip():
@@ -2077,8 +2150,7 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        if user_id is not None and host.user_id != user_id:
-            raise HTTPException(status_code=403, detail="not your host")
+        _check_host_owner(host, user_id)
 
         conn = host_registry.get(host.host_id)
         if conn is None:
@@ -2198,8 +2270,7 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        if user_id is not None and host.user_id != user_id:
-            raise HTTPException(status_code=403, detail="not your host")
+        _check_host_owner(host, user_id)
 
         conn = host_registry.get(host.host_id)
         if conn is None:
@@ -2283,8 +2354,7 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        if user_id is not None and host.user_id != user_id:
-            raise HTTPException(status_code=403, detail="not your host")
+        _check_host_owner(host, user_id)
 
         conn = host_registry.get(host.host_id)
         if conn is None:
@@ -2335,8 +2405,7 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        if user_id is not None and host.user_id != user_id:
-            raise HTTPException(status_code=403, detail="not your host")
+        _check_host_owner(host, user_id)
 
         if not path.strip():
             raise HTTPException(status_code=400, detail="path must not be empty")
@@ -2361,5 +2430,86 @@ def create_hosts_router(
             raise HTTPException(status_code=400, detail=exc.message) from exc
 
         return {"object": "list", "data": worktrees}
+
+    @router.get("/hosts/{host_id}/assignments")
+    async def get_host_assignments(request: Request, host_id: str) -> dict[str, Any]:
+        """List users and organizations assigned to a host runner (Owner or Admin)."""
+        user_id = require_user(request, auth_provider)
+        host = await asyncio.to_thread(host_store.get_host, host_id)
+        if host is None:
+            raise HTTPException(status_code=404, detail="host not found")
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        if not is_admin and user_id != host.user_id:
+            raise HTTPException(status_code=403, detail="only host owner or admin can view assignments")
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        return await asyncio.to_thread(org_store.list_host_assignments, host_id)
+
+    @router.post("/hosts/{host_id}/assignments", status_code=201)
+    async def assign_host_access(request: Request, host_id: str) -> dict[str, Any]:
+        """Assign a user or organization to a host runner (Owner or Admin)."""
+        user_id = require_user(request, auth_provider)
+        host = await asyncio.to_thread(host_store.get_host, host_id)
+        if host is None:
+            raise HTTPException(status_code=404, detail="host not found")
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        if not is_admin and user_id != host.user_id:
+            raise HTTPException(status_code=403, detail="only host owner or admin can assign access")
+        body = await request.json()
+        target_user = body.get("user_id") or body.get("username")
+        target_org = body.get("organization_id")
+        level = int(body.get("level", 1))
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        if target_user:
+            return await asyncio.to_thread(
+                org_store.assign_user_to_host,
+                host_id=host_id,
+                user_id=target_user.strip(),
+                assigned_by=user_id,
+                level=level,
+            )
+        elif target_org:
+            return await asyncio.to_thread(
+                org_store.assign_org_to_host,
+                host_id=host_id,
+                organization_id=target_org.strip(),
+            )
+        else:
+            raise HTTPException(status_code=400, detail="must provide user_id or organization_id")
+
+    @router.delete("/hosts/{host_id}/assignments/users/{target_user_id}")
+    async def unassign_user_host_access(request: Request, host_id: str, target_user_id: str) -> dict[str, bool]:
+        """Unassign a user from a host runner (Owner or Admin)."""
+        user_id = require_user(request, auth_provider)
+        host = await asyncio.to_thread(host_store.get_host, host_id)
+        if host is None:
+            raise HTTPException(status_code=404, detail="host not found")
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        if not is_admin and user_id != host.user_id:
+            raise HTTPException(status_code=403, detail="only host owner or admin can unassign access")
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        removed = await asyncio.to_thread(org_store.unassign_user_from_host, host_id=host_id, user_id=target_user_id)
+        if not removed:
+            raise HTTPException(status_code=404, detail="assignment not found")
+        return {"ok": True}
+
+    @router.delete("/hosts/{host_id}/assignments/organizations/{target_org_id}")
+    async def unassign_org_host_access(request: Request, host_id: str, target_org_id: str) -> dict[str, bool]:
+        """Unassign an organization from a host runner (Owner or Admin)."""
+        user_id = require_user(request, auth_provider)
+        host = await asyncio.to_thread(host_store.get_host, host_id)
+        if host is None:
+            raise HTTPException(status_code=404, detail="host not found")
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        if not is_admin and user_id != host.user_id:
+            raise HTTPException(status_code=403, detail="only host owner or admin can unassign access")
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        removed = await asyncio.to_thread(org_store.unassign_org_from_host, host_id=host_id, organization_id=target_org_id)
+        if not removed:
+            raise HTTPException(status_code=404, detail="assignment not found")
+        return {"ok": True}
 
     return router
