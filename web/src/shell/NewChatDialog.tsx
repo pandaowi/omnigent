@@ -1528,7 +1528,11 @@ export function AgentHarnessPicker({
       }
       if (unavailable) unavailableIds.add(agent.id);
       const key = nativeCodingAgentForAvailableAgent(agent)?.iconKind ?? "";
-      const primary = PRIMARY_HARNESS_ORDER.includes(key) || agent.id === promotedHarnessId;
+      const isConfiguredOnHost = host?.configured_harnesses?.[agent.harness ?? ""] === true;
+      const primary =
+        PRIMARY_HARNESS_ORDER.includes(key) ||
+        agent.id === promotedHarnessId ||
+        isConfiguredOnHost;
       // Unavailable primaries demote to "Other..." — the main list stays
       // launch-ready; the selected harness always keeps its slot.
       if (primary && (selected || !unavailable)) {
@@ -3131,6 +3135,16 @@ export function NewChatLandingScreen() {
     canLoadHostModels("pi-native"),
     { poll: selectedNativeHarness === "pi-native" },
   );
+  const {
+    data: hostOpencodeModelOptions,
+    isLoading: hostOpencodeModelsLoading,
+    error: hostOpencodeModelsError,
+  } = useHostModelOptions(
+    selectedHostId,
+    "opencode-native",
+    canLoadHostModels("opencode-native"),
+    { poll: selectedNativeHarness === "opencode-native" },
+  );
   // Keep this host's cached choices while requests wait for readiness.
   // A fetched catalog, including an empty one, takes precedence.
   const cachedHostModels =
@@ -3180,6 +3194,12 @@ export function NewChatLandingScreen() {
     hostPiModelOptions,
     hostPiModelsLoading,
     cachedHostModels?.pi,
+  );
+  const availableOpencodeModels = availableHostModels(
+    "opencode-native",
+    hostOpencodeModelOptions,
+    hostOpencodeModelsLoading,
+    cachedHostModels?.opencode,
   );
   const {
     data: hostDevinModelOptions,
@@ -3337,6 +3357,19 @@ export function NewChatLandingScreen() {
           })),
     [availablePiModels, sandboxSelected, sandboxCatalog],
   );
+  const opencodeModelOptions = useMemo(
+    () =>
+      sandboxSelected
+        ? (sandboxCatalog ?? [])
+        : (availableOpencodeModels ?? []).map((option) => ({
+            id: option.id,
+            model: option.model,
+            displayName: nativeModelLabel(option),
+            isDefault: option.isDefault,
+            source: option.source,
+          })),
+    [availableOpencodeModels, sandboxSelected, sandboxCatalog],
+  );
   const supportsPermissionMode = nativeAgentHasCapability(selectedAgent, "permissionMode");
   const supportsDevinMode = nativeAgentHasCapability(selectedAgent, "devinMode");
   const supportsApprovalMode = nativeAgentHasCapability(selectedAgent, "approvalMode");
@@ -3428,7 +3461,8 @@ export function NewChatLandingScreen() {
     }
     if (supportsModelPicker && !supportsPermissionMode) {
       const isAgy = selectedNativeHarness === "antigravity-native";
-      const modelList = isAgy ? agyModelOptions : piModelOptions;
+      const isOpencode = selectedNativeHarness === "opencode-native";
+      const modelList = isAgy ? agyModelOptions : isOpencode ? opencodeModelOptions : piModelOptions;
       const pickedRow = modelList.find((model) => model.id === pickedModel);
       const modelValue =
         (pickedRow ? nativeModelLabel(pickedRow) : null) ??
@@ -3582,11 +3616,13 @@ export function NewChatLandingScreen() {
         ? devinModelOptions
         : selectedNativeHarness === "pi-native"
           ? piModelOptions
-          : selectedNativeHarness === "antigravity-native"
-            ? agyModelOptions
-            : selectedNativeHarness === "codex-native"
-              ? codexModelOptions
-              : [];
+          : selectedNativeHarness === "opencode-native"
+            ? opencodeModelOptions
+            : selectedNativeHarness === "antigravity-native"
+              ? agyModelOptions
+              : selectedNativeHarness === "codex-native"
+                ? codexModelOptions
+                : [];
   const pickerModelsLoading =
     sandboxCatalogPending ||
     (!sandboxSelected &&
@@ -3597,9 +3633,11 @@ export function NewChatLandingScreen() {
           ? hostCodexModelsLoading
           : selectedNativeHarness === "pi-native"
             ? hostPiModelsLoading
-            : selectedNativeHarness === "devin-native"
-              ? hostDevinModelsLoading
-              : false));
+            : selectedNativeHarness === "opencode-native"
+              ? hostOpencodeModelsLoading
+              : selectedNativeHarness === "devin-native"
+                ? hostDevinModelsLoading
+                : false));
   const pickerModelsError = sandboxSelected
     ? sandboxCatalogError || sandboxDefaultCatalogError
       ? new Error((sandboxCatalogError ?? sandboxDefaultCatalogError)!)
@@ -3608,9 +3646,11 @@ export function NewChatLandingScreen() {
       ? hostClaudeModelsError
       : selectedNativeHarness === "codex-native"
         ? hostCodexModelsError
-        : selectedNativeHarness === "devin-native"
-          ? hostDevinModelsError
-          : null;
+        : selectedNativeHarness === "opencode-native"
+          ? hostOpencodeModelsError
+          : selectedNativeHarness === "devin-native"
+            ? hostDevinModelsError
+            : null;
   const modelCatalogLookupEnabled = sandboxSelected
     ? sandboxPreviewEnabled && sandboxInferenceConfigured
     : selectedNativeHarness !== null && canLoadHostModels(selectedNativeHarness);
@@ -3679,6 +3719,7 @@ export function NewChatLandingScreen() {
               claude: availableClaudeModels,
               codex: availableCodexModels,
               pi: availablePiModels,
+              opencode: availableOpencodeModels,
             },
           }
         : null,
@@ -3691,6 +3732,7 @@ export function NewChatLandingScreen() {
       availableClaudeModels,
       availableCodexModels,
       availablePiModels,
+      availableOpencodeModels,
     ],
   );
   useEffect(() => {
@@ -4056,6 +4098,7 @@ export function NewChatLandingScreen() {
     "codex-native": availableCodexModels,
     "antigravity-native": availableAgyModels,
     "pi-native": availablePiModels,
+    "opencode-native": availableOpencodeModels,
     "devin-native": hostDevinModelOptions,
   };
   const pickerEntrySummaries = Object.fromEntries(
@@ -4078,9 +4121,11 @@ export function NewChatLandingScreen() {
               ? agyModelOptions
               : native.iconKind === "pi"
                 ? piModelOptions
-                : native.iconKind === "devin"
-                  ? devinModelOptions
-                  : [];
+                : native.iconKind === "opencode"
+                  ? opencodeModelOptions
+                  : native.iconKind === "devin"
+                    ? devinModelOptions
+                    : [];
       const savedFusion = fusionOption(catalog)?.fusion;
       // Preserve saved IDs while host data is absent; an empty result is authoritative.
       const hostCatalogUnavailable =
@@ -4193,15 +4238,17 @@ export function NewChatLandingScreen() {
   const projectModelVocab =
     selectedNativeHarness === "pi-native"
       ? piModelOptions
-      : selectedNativeHarness === "claude-native"
-        ? claudeModelOptions
-        : selectedNativeHarness === "devin-native"
-          ? devinModelOptions
-          : selectedNativeHarness === "antigravity-native"
-            ? agyModelOptions
-            : selectedNativeHarness === "codex-native"
-              ? codexModelOptions
-              : [];
+      : selectedNativeHarness === "opencode-native"
+        ? opencodeModelOptions
+        : selectedNativeHarness === "claude-native"
+          ? claudeModelOptions
+          : selectedNativeHarness === "devin-native"
+            ? devinModelOptions
+            : selectedNativeHarness === "antigravity-native"
+              ? agyModelOptions
+              : selectedNativeHarness === "codex-native"
+                ? codexModelOptions
+                : [];
   const projectDefaultModelValid =
     projectDefaultModel != null && projectModelVocab.some((m) => m.id === projectDefaultModel)
       ? projectDefaultModel
@@ -4382,6 +4429,22 @@ export function NewChatLandingScreen() {
       setDevinPermissionMode(
         resolve(DEVIN_NATIVE_PERMISSION_MODES, DEVIN_NATIVE_DEFAULT_PERMISSION_MODE),
       );
+    } else if (selectedNativeHarness === "opencode-native") {
+      const userAssignedOpencodeModel =
+        !userPickedModelRef.current &&
+        userExec?.default_model &&
+        opencodeModelOptions.some((m) => m.id === userExec.default_model)
+          ? userExec.default_model
+          : null;
+      const seededOpencodeModel =
+        userAssignedOpencodeModel ??
+        projectSeed(opencodeModelOptions) ??
+        (!storedRoutingOn &&
+        stored.model != null &&
+        opencodeModelOptions.some((m) => m.id === stored.model)
+          ? stored.model
+          : (opencodeModelOptions.find((m) => m.isDefault)?.id ?? opencodeModelOptions[0]?.id ?? ""));
+      setPickedModel(seededOpencodeModel);
     }
     // Reseed on harness, host-catalog, and async project model/effort or
     // last-start changes; capability flags derive from the harness.
@@ -4393,6 +4456,7 @@ export function NewChatLandingScreen() {
     codexModelOptions,
     piModelOptions,
     agyModelOptions,
+    opencodeModelOptions,
     userExec,
     projectDefaultModel,
     projectDefaultEffort,

@@ -893,7 +893,9 @@ export function ChatPage() {
         ? "claude-native"
         : fallbackPickerKind === "devin"
           ? "devin-native"
-          : null;
+          : fallbackPickerKind === "opencode"
+            ? "opencode-native"
+            : null;
   const { data: hostProbeOptions } = useHostModelOptions(
     activeSession?.hostId ?? null,
     hostProbeHarness ?? "",
