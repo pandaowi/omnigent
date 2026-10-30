@@ -133,7 +133,19 @@ export async function fetchRunnerReadyHarnesses(host: HostItem): Promise<ReadyHa
     } catch {}
     if (models.length === 0) {
       models = [
+        "gemini-4-argon-high",
+        "gemini-4-argon-medium",
+        "gemini-4-argon-low",
         "gemini-3.8-flash-high",
+        "gemini-3.8-flash-medium",
+        "gemini-3.8-flash-low",
+        "claude-opus-5-5-high",
+        "claude-opus-5-5-medium",
+        "claude-opus-5-5-low",
+        "claude-sonnet-5-5-high",
+        "claude-sonnet-5-5-medium",
+        "claude-sonnet-5-5-low",
+        "gpt-oss-120b-medium",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
@@ -375,7 +387,11 @@ export const POPULAR_PROVIDER_MODELS: Record<string, string[]> = {
     "gpt-6.1-sol", "gpt-6-astra", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"
   ],
   "Antigravity": [
-    "gemini-3.8-flash-high", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"
+    "gemini-4-argon-high", "gemini-4-argon-medium", "gemini-4-argon-low",
+    "gemini-3.8-flash-high", "gemini-3.8-flash-medium", "gemini-3.8-flash-low",
+    "claude-opus-5-5-high", "claude-opus-5-5-medium", "claude-opus-5-5-low",
+    "claude-sonnet-5-5-high", "claude-sonnet-5-5-medium", "claude-sonnet-5-5-low",
+    "gpt-oss-120b-medium", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"
   ]
 };
 

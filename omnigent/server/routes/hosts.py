@@ -1060,7 +1060,19 @@ def create_hosts_router(
         canon = canonicalize_harness(harness) or harness
         if canon in ("antigravity-native", "antigravity", "native-antigravity", "native-agy", "agy-native", "agy"):
             agy_models = [
-                {"id": "gemini-3.8-flash-high", "displayName": "Gemini 3.8 Flash High"},
+                {"id": "gemini-4-argon-high", "displayName": "Gemini 4 Argon (High)"},
+                {"id": "gemini-4-argon-medium", "displayName": "Gemini 4 Argon (Medium)"},
+                {"id": "gemini-4-argon-low", "displayName": "Gemini 4 Argon (Low)"},
+                {"id": "gemini-3.8-flash-high", "displayName": "Gemini 3.8 Flash (High)"},
+                {"id": "gemini-3.8-flash-medium", "displayName": "Gemini 3.8 Flash (Medium)"},
+                {"id": "gemini-3.8-flash-low", "displayName": "Gemini 3.8 Flash (Low)"},
+                {"id": "claude-opus-5-5-high", "displayName": "Claude Opus 5.5 (High)"},
+                {"id": "claude-opus-5-5-medium", "displayName": "Claude Opus 5.5 (Medium)"},
+                {"id": "claude-opus-5-5-low", "displayName": "Claude Opus 5.5 (Low)"},
+                {"id": "claude-sonnet-5-5-high", "displayName": "Claude Sonnet 5.5 (High)"},
+                {"id": "claude-sonnet-5-5-medium", "displayName": "Claude Sonnet 5.5 (Medium)"},
+                {"id": "claude-sonnet-5-5-low", "displayName": "Claude Sonnet 5.5 (Low)"},
+                {"id": "gpt-oss-120b-medium", "displayName": "GPT-OSS 120B (Medium)"},
                 {"id": "gemini-2.5-pro", "displayName": "Gemini 2.5 Pro"},
                 {"id": "gemini-2.5-flash", "displayName": "Gemini 2.5 Flash"},
                 {"id": "gemini-2.0-flash", "displayName": "Gemini 2.0 Flash"},
