@@ -91,6 +91,8 @@ export async function fetchRunnerReadyHarnesses(host: HostItem): Promise<ReadyHa
     conf["native-agy"] === true ||
     conf["agy-native"] === true;
   const isClaudeReady = conf["claude-native"] === true || conf["claude"] === true || conf["native-claude"] === true;
+  const isOpenCodeReady =
+    conf["opencode-native"] === true || conf["opencode"] === true || conf["native-opencode"] === true;
 
   // 1. Probed Codex models if ready
   if (isCodexReady) {
@@ -175,6 +177,23 @@ export async function fetchRunnerReadyHarnesses(host: HostItem): Promise<ReadyHa
         }
       }
     } catch {}
+  }
+
+  // 4. OpenCode models if ready
+  if (isOpenCodeReady) {
+    let models: string[] = [];
+    try {
+      const res = await fetch(withBasePath(`/v1/hosts/${host.host_id}/harnesses/opencode-native/model-options`), { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        models = (data.models || []).map((m: any) => m.id || m.model).filter(Boolean);
+      }
+    } catch {}
+    groups.push({
+      harnessKey: "opencode",
+      harnessName: "OpenCode",
+      models,
+    });
   }
 
   return groups;

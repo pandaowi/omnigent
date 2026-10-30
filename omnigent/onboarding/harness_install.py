@@ -228,7 +228,7 @@ _HARNESS_INSTALL: dict[str, HarnessInstallSpec] = {
     OPENCODE_KEY: HarnessInstallSpec(
         "OpenCode",
         "opencode",
-        "opencode-ai@~1.18.0",
+        "opencode-ai@>=1.18.0,<2.0.0",
         min_version=OPENCODE_MIN_VERSION,
         max_version_exclusive=OPENCODE_MAX_VERSION_EXCLUSIVE,
     ),

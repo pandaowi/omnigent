@@ -4122,6 +4122,32 @@ class HostProcess:
                 models=with_source(devin_models),
             )
 
+        if harness in ("opencode-native", "opencode", "native-opencode"):
+            try:
+                from omnigent.harnesses.opencode_native.app_server import (
+                    list_opencode_cli_model_options,
+                )
+
+                opencode_models = await asyncio.to_thread(list_opencode_cli_model_options)
+            except Exception:
+                _logger.warning("OpenCode model catalog unavailable", exc_info=True)
+                return HostModelOptionsResultFrame(
+                    request_id=frame.request_id,
+                    status="failed",
+                    error="failed to resolve OpenCode model options",
+                )
+            routable = [
+                row["id"]
+                for row in opencode_models
+                if isinstance(row.get("id"), str) and row["id"]
+            ]
+            return HostModelOptionsResultFrame(
+                request_id=frame.request_id,
+                status="ok",
+                models=with_source(opencode_models),
+                routable_models=routable,
+            )
+
         if is_claude_sdk_harness_name(harness):
             # SDK-mode Claude is a pass-through client with no model catalog
             # of its own, so the endpoint listing IS the harness truth — the
