@@ -397,22 +397,38 @@ export function MembersPage() {
     }
   };
 
+  // Helper functions
+  const rebaseUrl = (serverUrl: string): string => {
+    try {
+      const parsed = new URL(serverUrl);
+      return `${window.location.origin}${withBasePath(parsed.pathname)}${parsed.search}${parsed.hash}`;
+    } catch {
+      return serverUrl;
+    }
+  };
+
+  const formatTtl = (expiresAt: number | undefined): string => {
+    if (expiresAt === undefined) return "soon";
+    const secs = Math.max(0, expiresAt - Math.floor(Date.now() / 1000));
+    const hours = Math.round(secs / 3600);
+    if (hours >= 1) return `${hours}h`;
+    return `${Math.max(1, Math.round(secs / 60))}m`;
+  };
+
   // Invite creation
   const handleCreateInvite = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const username = String(formData.get("username") || "").trim();
     const isAdmin = formData.get("is_admin") === "on";
-
-    if (!username) {
-      toast.error("Please enter a username");
-      return;
-    }
 
     setPendingAction(true);
     try {
-      const result = await createInvite(username, isAdmin);
+      const result = await createInvite(isAdmin);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       setInviteResult(result);
       form.reset();
       void refreshUsers();
@@ -429,6 +445,10 @@ export function MembersPage() {
     setPendingAction(true);
     try {
       const result = await resetUserPassword(resettingUser.id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       setResetResult(result);
       toast.success(`Password reset for ${resettingUser.id}`);
     } catch (err) {
@@ -443,7 +463,11 @@ export function MembersPage() {
     if (!deletingUser) return;
     setPendingAction(true);
     try {
-      await deleteUser(deletingUser.id);
+      const result = await deleteUser(deletingUser.id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       toast.success(`User ${deletingUser.id} deleted`);
       setDeletingUser(null);
       void refreshUsers();
@@ -997,7 +1021,7 @@ export function MembersPage() {
       </div>
 
       {/* Create Invite Dialog */}
-      <Dialog open={showCreateInvite} onOpenChange={setShowCreateInvite}>
+      <Dialog open={showCreateInvite} onOpenChange={(open) => { setShowCreateInvite(open); if (!open) setInviteResult(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Invite Member</DialogTitle>
@@ -1009,16 +1033,22 @@ export function MembersPage() {
           {inviteResult ? (
             <div className="space-y-4 pt-2">
               <div className="p-3 bg-muted rounded-md space-y-1">
-                <span className="text-xs text-muted-foreground">Invite Link:</span>
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                  <span>Invite Link:</span>
+                  <span>Expires in {formatTtl(inviteResult.expires_at)}</span>
+                </div>
                 <div className="font-mono text-xs break-all select-all bg-background p-2 rounded border">
-                  {withBasePath(inviteResult.invite_url)}
+                  {rebaseUrl(inviteResult.register_url)}
                 </div>
               </div>
-              <DialogFooter>
+              <p className="text-xs text-muted-foreground">
+                Send this URL to the new member. It is single-use and will prompt them to set their own username and password.
+              </p>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button
                   className="w-full"
                   onClick={() => {
-                    void navigator.clipboard.writeText(withBasePath(inviteResult.invite_url));
+                    void navigator.clipboard.writeText(rebaseUrl(inviteResult.register_url));
                     setInviteCopied(true);
                     toast.success("Invite link copied to clipboard");
                     setTimeout(() => setInviteCopied(false), 2000);
@@ -1027,15 +1057,17 @@ export function MembersPage() {
                   <CopyIcon className="h-4 w-4 mr-1.5" />
                   {inviteCopied ? "Copied!" : "Copy Link"}
                 </Button>
+                <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowCreateInvite(false)}>
+                  Done
+                </Button>
               </DialogFooter>
             </div>
           ) : (
             <form onSubmit={handleCreateInvite} className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Username</label>
-                <Input name="username" placeholder="e.g. alice" required />
-              </div>
-              <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">
+                Generate an invite link for a new member. The recipient will choose their own username and password upon registration.
+              </p>
+              <div className="flex items-center gap-2 pt-1">
                 <input type="checkbox" id="is_admin" name="is_admin" className="rounded border-input" />
                 <label htmlFor="is_admin" className="text-sm cursor-pointer select-none">
                   Grant Administrator privileges
@@ -1046,7 +1078,7 @@ export function MembersPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={pendingAction}>
-                  Create Invite
+                  Create Invite Link
                 </Button>
               </DialogFooter>
             </form>
@@ -1060,44 +1092,50 @@ export function MembersPage() {
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
             <DialogDescription>
-              Generate a temporary password reset link for {resettingUser?.id}.
+              Generate a temporary new password for {resettingUser?.id}.
             </DialogDescription>
           </DialogHeader>
 
           {resetResult ? (
             <div className="space-y-4 pt-2">
               <div className="p-3 bg-muted rounded-md space-y-1">
-                <span className="text-xs text-muted-foreground">Password Reset Link:</span>
-                <div className="font-mono text-xs break-all select-all bg-background p-2 rounded border">
-                  {withBasePath(resetResult.reset_url)}
+                <span className="text-xs text-muted-foreground">New Temporary Password:</span>
+                <div className="font-mono text-sm select-all bg-background p-2 rounded border font-semibold">
+                  {resetResult.new_password}
                 </div>
               </div>
-              <DialogFooter>
+              <p className="text-xs text-muted-foreground">
+                Share this password with <strong>{resetResult.id}</strong>. It is shown only once and existing sessions have been revoked.
+              </p>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button
                   className="w-full"
                   onClick={() => {
-                    void navigator.clipboard.writeText(withBasePath(resetResult.reset_url));
+                    void navigator.clipboard.writeText(resetResult.new_password);
                     setResetCopied(true);
-                    toast.success("Reset link copied to clipboard");
+                    toast.success("Password copied to clipboard");
                     setTimeout(() => setResetCopied(false), 2000);
                   }}
                 >
                   <CopyIcon className="h-4 w-4 mr-1.5" />
-                  {resetCopied ? "Copied!" : "Copy Reset Link"}
+                  {resetCopied ? "Copied!" : "Copy Password"}
+                </Button>
+                <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setResettingUser(null); setResetResult(null); }}>
+                  Done
                 </Button>
               </DialogFooter>
             </div>
           ) : (
             <div className="pt-2">
               <p className="text-sm text-muted-foreground">
-                This will invalidate any existing password and generate a one-time link.
+                This will invalidate any existing password and sessions, generating a new random password for <strong>{resettingUser?.id}</strong>.
               </p>
               <DialogFooter className="mt-4">
                 <Button variant="outline" onClick={() => setResettingUser(null)}>
                   Cancel
                 </Button>
                 <Button onClick={handleConfirmReset} disabled={pendingAction}>
-                  Generate Link
+                  Generate New Password
                 </Button>
               </DialogFooter>
             </div>
