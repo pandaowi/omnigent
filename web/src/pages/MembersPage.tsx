@@ -87,6 +87,7 @@ export function MembersPage() {
   const [harnessModelModes, setHarnessModelModes] = useState<Record<string, "all" | "custom">>({});
   const [harnessSelectedModels, setHarnessSelectedModels] = useState<Record<string, string[]>>({});
   const [defaultModel, setDefaultModel] = useState<string>("");
+  const [modelFilter, setModelFilter] = useState<Record<string, string>>({});
 
   // Dialogs
   const [showCreateInvite, setShowCreateInvite] = useState(false);
@@ -721,14 +722,14 @@ export function MembersPage() {
 
                                 {/* Custom Model Checkbox Grid */}
                                 {currentMode === "custom" && (
-                                  <div className="space-y-2 pt-2 border-t border-border/30">
-                                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                  <div className="space-y-2.5 pt-2 border-t border-border/30">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-muted-foreground">
                                       <span>Check the models allowed for this harness:</span>
                                       <div className="flex items-center gap-2">
                                         <button
                                           type="button"
                                           onClick={() => selectAllModelsForHarness(hNative, rh.models)}
-                                          className="hover:text-primary hover:underline"
+                                          className="hover:text-primary hover:underline font-medium"
                                         >
                                           Select All
                                         </button>
@@ -736,52 +737,97 @@ export function MembersPage() {
                                         <button
                                           type="button"
                                           onClick={() => clearAllModelsForHarness(hNative)}
-                                          className="hover:text-primary hover:underline"
+                                          className="hover:text-primary hover:underline font-medium"
                                         >
                                           Clear All
                                         </button>
                                       </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2 rounded-lg bg-background/60 border border-border/40">
-                                      {rh.models.map((m) => {
-                                        const checked = selectedModels.includes(m);
-                                        const isModelDefault = defaultModel === m;
-                                        return (
-                                          <div
-                                            key={m}
-                                            className={`flex items-center justify-between p-2 rounded-md border text-xs transition-all ${
-                                              checked
-                                                ? "bg-primary/10 border-primary/50 text-foreground font-semibold"
-                                                : "bg-card/40 border-border/40 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                                            }`}
+                                    {rh.models.length > 6 && (
+                                      <div className="relative">
+                                        <input
+                                          type="text"
+                                          placeholder={`Filter ${rh.models.length} models...`}
+                                          value={modelFilter[hNative] || ""}
+                                          onChange={(e) =>
+                                            setModelFilter((prev) => ({ ...prev, [hNative]: e.target.value }))
+                                          }
+                                          className="w-full text-xs h-8 px-3 py-1 rounded-md bg-background/90 border border-border/60 placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                        {modelFilter[hNative] && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setModelFilter((prev) => ({ ...prev, [hNative]: "" }))
+                                            }
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
                                           >
-                                            <label className="flex items-center gap-2 cursor-pointer select-none truncate">
-                                              <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                onChange={() => toggleModelForHarness(hNative, m)}
-                                                className="rounded border-input h-3.5 w-3.5 text-primary accent-primary"
-                                              />
-                                              <span className="font-mono truncate">{m}</span>
-                                            </label>
-                                            {checked && (
-                                              <button
-                                                type="button"
-                                                onClick={() => setDefaultModel(m)}
-                                                title="Set as default model"
-                                                className={`text-[10px] px-1.5 py-0.5 rounded transition-all ${
-                                                  isModelDefault
-                                                    ? "bg-primary text-primary-foreground font-bold"
-                                                    : "text-muted-foreground hover:bg-muted"
-                                                }`}
-                                              >
-                                                {isModelDefault ? "Default" : "Make Default"}
-                                              </button>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
+                                            ✕
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-2.5 rounded-lg bg-background/60 border border-border/40 max-h-96 overflow-y-auto">
+                                      {rh.models
+                                        .filter((m) => {
+                                          const query = (modelFilter[hNative] || "").trim().toLowerCase();
+                                          return !query || m.toLowerCase().includes(query);
+                                        })
+                                        .map((m) => {
+                                          const checked = selectedModels.includes(m);
+                                          const isModelDefault = defaultModel === m;
+                                          const hasSlash = m.includes("/");
+                                          const provider = hasSlash ? m.split("/")[0] : null;
+                                          const modelName = hasSlash ? m.slice(provider!.length + 1) : m;
+
+                                          return (
+                                            <div
+                                              key={m}
+                                              title={m}
+                                              className={`flex items-start justify-between p-2.5 rounded-md border text-xs transition-all gap-2.5 ${
+                                                checked
+                                                  ? "bg-primary/10 border-primary/50 text-foreground"
+                                                  : "bg-card/40 border-border/40 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                                              }`}
+                                            >
+                                              <label className="flex items-start gap-2.5 cursor-pointer select-none min-w-0 flex-1">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={checked}
+                                                  onChange={() => toggleModelForHarness(hNative, m)}
+                                                  className="rounded border-input h-4 w-4 mt-0.5 text-primary accent-primary shrink-0 cursor-pointer"
+                                                />
+                                                <div className="min-w-0 flex-1 leading-snug">
+                                                  {provider && (
+                                                    <span className="text-[10px] text-muted-foreground font-mono block truncate opacity-75">
+                                                      {provider}/
+                                                    </span>
+                                                  )}
+                                                  <span className={`font-mono text-xs break-all ${checked ? "font-semibold text-foreground" : ""}`}>
+                                                    {modelName}
+                                                  </span>
+                                                </div>
+                                              </label>
+
+                                              {checked && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setDefaultModel(m)}
+                                                  title="Set as default model for this member"
+                                                  className={`text-[10px] px-2 py-1 rounded transition-all shrink-0 font-medium ${
+                                                    isModelDefault
+                                                      ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                                                      : "text-muted-foreground bg-muted/60 hover:bg-muted hover:text-foreground"
+                                                  }`}
+                                                >
+                                                  {isModelDefault ? "Default" : "Make Default"}
+                                                </button>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                     </div>
                                   </div>
                                 )}
