@@ -383,7 +383,34 @@ def register_model_option_routes(
             return await get_session_kiro_model_options(session_id)
         if harness == "devin-native":
             return await get_session_devin_model_options(session_id)
+        if harness in (
+            "antigravity-native",
+            "antigravity",
+            "native-antigravity",
+            "native-agy",
+            "agy-native",
+            "agy",
+        ):
+            return await get_session_antigravity_model_options(session_id)
         return JSONResponse(status_code=200, content={"models": []})
+
+    @app.get("/v1/sessions/{session_id}/antigravity-model-options")
+    async def get_session_antigravity_model_options(session_id: str) -> JSONResponse:
+        from omnigent.harnesses.antigravity_native.main import (
+            DEFAULT_ANTIGRAVITY_FALLBACK_MODELS,
+            list_antigravity_cli_model_options,
+        )
+
+        try:
+            rows = await asyncio.to_thread(list_antigravity_cli_model_options)
+        except Exception:
+            rows = []
+        if not rows:
+            rows = list(DEFAULT_ANTIGRAVITY_FALLBACK_MODELS)
+        return JSONResponse(
+            status_code=200,
+            content={"models": _with_model_configuration_source(session_id, rows)},
+        )
 
     @app.post("/v1/sessions/{session_id}/skills/resolve")
     async def resolve_session_skill(session_id: str, request: Request) -> JSONResponse:

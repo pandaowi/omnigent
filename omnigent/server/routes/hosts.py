@@ -1058,37 +1058,34 @@ def create_hosts_router(
         _require_harness_setup_support(conn, "pre-launch model listing")
 
         canon = canonicalize_harness(harness) or harness
-        if canon in ("antigravity-native", "antigravity", "native-antigravity", "native-agy", "agy-native", "agy"):
-            agy_models = [
-                {"id": "gemini-4-argon-high", "displayName": "Gemini 4 Argon (High)"},
-                {"id": "gemini-4-argon-medium", "displayName": "Gemini 4 Argon (Medium)"},
-                {"id": "gemini-4-argon-low", "displayName": "Gemini 4 Argon (Low)"},
-                {"id": "gemini-3.8-flash-high", "displayName": "Gemini 3.8 Flash (High)"},
-                {"id": "gemini-3.8-flash-medium", "displayName": "Gemini 3.8 Flash (Medium)"},
-                {"id": "gemini-3.8-flash-low", "displayName": "Gemini 3.8 Flash (Low)"},
-                {"id": "claude-opus-5-5-high", "displayName": "Claude Opus 5.5 (High)"},
-                {"id": "claude-opus-5-5-medium", "displayName": "Claude Opus 5.5 (Medium)"},
-                {"id": "claude-opus-5-5-low", "displayName": "Claude Opus 5.5 (Low)"},
-                {"id": "claude-sonnet-5-5-high", "displayName": "Claude Sonnet 5.5 (High)"},
-                {"id": "claude-sonnet-5-5-medium", "displayName": "Claude Sonnet 5.5 (Medium)"},
-                {"id": "claude-sonnet-5-5-low", "displayName": "Claude Sonnet 5.5 (Low)"},
-                {"id": "gpt-oss-120b-medium", "displayName": "GPT-OSS 120B (Medium)"},
-                {"id": "gemini-2.5-pro", "displayName": "Gemini 2.5 Pro"},
-                {"id": "gemini-2.5-flash", "displayName": "Gemini 2.5 Flash"},
-                {"id": "gemini-2.0-flash", "displayName": "Gemini 2.0 Flash"},
-                {"id": "gemini-1.5-pro", "displayName": "Gemini 1.5 Pro"},
-            ]
-            result = {
-                "status": "ok",
-                "models": agy_models,
-                "routable_models": [m["id"] for m in agy_models],
-            }
-        else:
+        is_antigravity = canon in (
+            "antigravity-native",
+            "antigravity",
+            "native-antigravity",
+            "native-agy",
+            "agy-native",
+            "agy",
+        )
+        try:
             result = await _proxy_model_options(
                 host_registry=host_registry,
                 host_conn=conn,
                 harness=canon,
             )
+        except Exception as exc:
+            _logger.warning("Failed to proxy model options for harness %s: %s", canon, exc)
+            result = {"status": "failed", "error": str(exc)}
+
+        if result.get("status") != "ok" and is_antigravity:
+            from omnigent.harnesses.antigravity_native.main import (
+                DEFAULT_ANTIGRAVITY_FALLBACK_MODELS,
+            )
+
+            result = {
+                "status": "ok",
+                "models": DEFAULT_ANTIGRAVITY_FALLBACK_MODELS,
+                "routable_models": [m["id"] for m in DEFAULT_ANTIGRAVITY_FALLBACK_MODELS],
+            }
         if result.get("status") != "ok":
             raise HTTPException(
                 status_code=502,

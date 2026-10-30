@@ -3948,6 +3948,7 @@ class HostProcess:
         results = await asyncio.gather(
             self._probed_codex_model_options(),
             self._probed_claude_model_options(),
+            self._probed_antigravity_model_options(),
             return_exceptions=True,
         )
         return all(
@@ -4014,6 +4015,27 @@ class HostProcess:
         if rows is None:
             return None
         routable = list(config.routable_models) if config is not None else []
+        return ModelOptionsResult(models=rows, routable_models=routable)
+
+    async def _probed_antigravity_model_options(self) -> ModelOptionsResult | None:
+        """
+        Store-backed harness-truth Antigravity listing probed from the host agy CLI.
+
+        :returns: The dynamic catalog listing from agy models, or None on failure.
+        """
+        try:
+            from omnigent.harnesses.antigravity_native.main import (
+                DEFAULT_ANTIGRAVITY_FALLBACK_MODELS,
+                list_antigravity_cli_model_options,
+            )
+
+            rows = await asyncio.to_thread(list_antigravity_cli_model_options)
+        except Exception:
+            _logger.warning("Antigravity model catalog probe failed", exc_info=True)
+            return None
+        if not rows:
+            rows = list(DEFAULT_ANTIGRAVITY_FALLBACK_MODELS)
+        routable = [row["id"] for row in rows if isinstance(row.get("id"), str) and row["id"]]
         return ModelOptionsResult(models=rows, routable_models=routable)
 
     async def _handle_model_options(
@@ -4144,6 +4166,28 @@ class HostProcess:
                 ),
                 routable_models=[model.id for model in listing.models],
             )
+        if harness in (
+            "antigravity-native",
+            "antigravity",
+            "native-antigravity",
+            "native-agy",
+            "agy-native",
+            "agy",
+        ):
+            probed = await self._probed_antigravity_model_options()
+            if probed is not None:
+                return HostModelOptionsResultFrame(
+                    request_id=frame.request_id,
+                    status="ok",
+                    models=with_source(probed.models),
+                    routable_models=probed.routable_models,
+                )
+            return HostModelOptionsResultFrame(
+                request_id=frame.request_id,
+                status="failed",
+                error="the antigravity model probe failed — see the host log",
+            )
+
         if harness != "claude-native":
             return HostModelOptionsResultFrame(
                 request_id=frame.request_id,

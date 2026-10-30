@@ -1791,3 +1791,128 @@ def _launch_is_headless() -> bool:
         # A closed/detached stream raises rather than returning False; treat any
         # such failure as "no interactive client" — the safe, non-hanging choice.
         return True
+
+
+DEFAULT_ANTIGRAVITY_FALLBACK_MODELS: list[dict[str, object]] = [
+    {"id": "gemini-4-argon-high", "displayName": "Gemini 4 Argon (High)"},
+    {"id": "gemini-4-argon-medium", "displayName": "Gemini 4 Argon (Medium)"},
+    {"id": "gemini-4-argon-low", "displayName": "Gemini 4 Argon (Low)"},
+    {"id": "gemini-3.8-flash-high", "displayName": "Gemini 3.8 Flash (High)", "isDefault": True},
+    {"id": "gemini-3.8-flash-medium", "displayName": "Gemini 3.8 Flash (Medium)"},
+    {"id": "gemini-3.8-flash-low", "displayName": "Gemini 3.8 Flash (Low)"},
+    {"id": "claude-opus-5-5-high", "displayName": "Claude Opus 5.5 (High)"},
+    {"id": "claude-opus-5-5-medium", "displayName": "Claude Opus 5.5 (Medium)"},
+    {"id": "claude-opus-5-5-low", "displayName": "Claude Opus 5.5 (Low)"},
+    {"id": "claude-sonnet-5-5-high", "displayName": "Claude Sonnet 5.5 (High)"},
+    {"id": "claude-sonnet-5-5-medium", "displayName": "Claude Sonnet 5.5 (Medium)"},
+    {"id": "claude-sonnet-5-5-low", "displayName": "Claude Sonnet 5.5 (Low)"},
+    {"id": "gpt-oss-120b-medium", "displayName": "GPT-OSS 120B (Medium)"},
+    {"id": "gemini-2.5-pro", "displayName": "Gemini 2.5 Pro"},
+    {"id": "gemini-2.5-flash", "displayName": "Gemini 2.5 Flash"},
+    {"id": "gemini-2.0-flash", "displayName": "Gemini 2.0 Flash"},
+    {"id": "gemini-1.5-pro", "displayName": "Gemini 1.5 Pro"},
+]
+
+_AGY_MODEL_OPTIONS_CACHE_TTL_S = 300.0
+_agy_cached_models: tuple[float, list[dict[str, object]]] | None = None
+
+
+def find_antigravity_binary() -> str | None:
+    """Find the agy / antigravity CLI executable on the host."""
+    found = shutil.which("agy") or shutil.which("antigravity")
+    if found:
+        return found
+    candidates = [
+        "/usr/local/bin/agy",
+        "/usr/bin/agy",
+        os.path.expanduser("~/.local/bin/agy"),
+        os.path.expanduser("~/.gemini/antigravity/bin/agy"),
+        "/usr/local/bin/antigravity",
+        "/usr/bin/antigravity",
+    ]
+    for cand in candidates:
+        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+            return cand
+    return None
+
+
+def list_antigravity_cli_model_options(
+    *,
+    timeout_s: float = 15.0,
+    force_refresh: bool = False,
+) -> list[dict[str, object]]:
+    """Discover available Antigravity models dynamically from the installed agy CLI.
+
+    Queries ``agy models`` to inspect the dynamic model entitlements of the
+    currently active/logged-in account on this host.
+    """
+    global _agy_cached_models
+    now = time.monotonic()
+    if not force_refresh and _agy_cached_models is not None:
+        cached_expiry, cached_rows = _agy_cached_models
+        if now < cached_expiry:
+            return cached_rows
+
+    agy_bin = find_antigravity_binary()
+    if not agy_bin:
+        _logger.warning("agy binary not found on host; cannot probe live models")
+        return []
+
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            [agy_bin, "models"],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+    except Exception as exc:
+        _logger.warning("Failed to execute '%s models': %s", agy_bin, exc)
+        return []
+
+    if proc.returncode != 0:
+        _logger.warning(
+            "'%s models' exited with code %d: %s",
+            agy_bin,
+            proc.returncode,
+            proc.stderr.strip(),
+        )
+        return []
+
+    rows: list[dict[str, object]] = []
+    default_set = False
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if not line or line.startswith("Fetching") or line.startswith("Warning"):
+            continue
+        parts = line.split("\t", 1)
+        if len(parts) == 2:
+            model_id = parts[0].strip()
+            display_name = parts[1].strip()
+        else:
+            parts = line.split(None, 1)
+            if len(parts) == 2:
+                model_id = parts[0].strip()
+                display_name = parts[1].strip()
+            else:
+                model_id = line
+                display_name = line
+        if not model_id:
+            continue
+        is_default = model_id == "gemini-3.8-flash-high"
+        if is_default:
+            default_set = True
+        rows.append({
+            "id": model_id,
+            "displayName": display_name or model_id,
+            "isDefault": is_default,
+        })
+
+    if rows and not default_set:
+        rows[0]["isDefault"] = True
+
+    if rows:
+        _agy_cached_models = (now + _AGY_MODEL_OPTIONS_CACHE_TTL_S, rows)
+    return rows
+
