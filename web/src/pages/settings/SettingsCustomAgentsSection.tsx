@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { BotIcon, PlusIcon, SearchIcon, TrashIcon } from "lucide-react";
+import { BotIcon, PlusIcon, SearchIcon, TrashIcon, UsersIcon } from "lucide-react";
 import { Link, useNavigate } from "@/lib/routing";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { customAgentsSettingsEnabled } from "@/lib/capabilities";
@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CreateAgentForm } from "@/shell/CreateAgentDialog";
+import { CreateAgentTeamDialog } from "@/shell/CreateAgentTeamDialog";
 import { useSettingsRoute } from "@/shell/settingsNav";
 import {
   useCustomAgents,
@@ -52,6 +53,7 @@ export function SettingsCustomAgentsSection() {
   const labels = useHarnessLabels(supported);
   const acpHarnesses = useAcpHarnessIds(supported);
   const [search, setSearch] = useState("");
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const serverAgents = useMemo(
     () => servers.data?.pages.flatMap((page) => page.data) ?? [],
     [servers.data],
@@ -152,26 +154,50 @@ export function SettingsCustomAgentsSection() {
   }
   return (
     <div className="@container">
-      <h1 className="pb-6 text-2xl font-semibold">Custom agents</h1>
+      <div className="flex items-center justify-between pb-6">
+        <div>
+          <h1 className="text-2xl font-semibold">Agents &amp; Teams</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage custom single agents and multi-role orchestrated agent teams.
+          </p>
+        </div>
+      </div>
       <div className="mb-6 flex items-center gap-2">
         <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border px-2.5">
           <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <input
             type="search"
             aria-label="Search agents"
-            placeholder="Search agents…"
+            placeholder="Search agents or teams…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="min-w-0 flex-1 bg-transparent text-ui outline-none placeholder:text-muted-foreground/50"
           />
         </div>
-        <Button asChild size="sm">
+        <Button asChild size="sm" variant="outline">
           <Link to={`${BASE}/new`} componentId="settings.custom_agents.create">
-            <PlusIcon />
-            Create
+            <PlusIcon className="size-4" />
+            Create Agent
           </Link>
         </Button>
+        <Button
+          size="sm"
+          onClick={() => setTeamDialogOpen(true)}
+          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          <UsersIcon className="size-4" />
+          Create Team
+        </Button>
       </div>
+
+      <CreateAgentTeamDialog
+        open={teamDialogOpen}
+        onOpenChange={setTeamDialogOpen}
+        onCreate={async (input) => {
+          const agent = await save.mutateAsync(input);
+          navigate(agentPath(agent.id));
+        }}
+      />
       {(yours.hasNextPage || servers.hasNextPage) && (
         <p className="mb-4 text-xs text-muted-foreground">
           Search filters loaded agents. Load more to include older agents.
@@ -243,10 +269,21 @@ export function SettingsCustomAgentsSection() {
                         aria-label={agent.name}
                       >
                         <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground">
-                          <BotIcon className="size-[15px]" aria-hidden />
+                          {agent.description?.toLowerCase().includes("team") ? (
+                            <UsersIcon className="size-[15px] text-emerald-500" aria-hidden />
+                          ) : (
+                            <BotIcon className="size-[15px]" aria-hidden />
+                          )}
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-medium">{agent.name}</span>
+                          <span className="flex items-center gap-2 font-medium">
+                            <span className="truncate">{agent.name}</span>
+                            {agent.description?.toLowerCase().includes("team") && (
+                              <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded font-semibold">
+                                Team
+                              </span>
+                            )}
+                          </span>
                           <span className="block truncate text-xs text-muted-foreground">
                             {agent.description}
                           </span>

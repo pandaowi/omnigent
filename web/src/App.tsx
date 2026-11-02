@@ -241,6 +241,10 @@ function AppRoutes({ basename }: AppProps) {
             path={`${prefix}/policies`}
             element={<Navigate to={`${prefix}/settings/policies`} replace />}
           />
+          <Route
+            path={`${prefix}/agents`}
+            element={<Navigate to={`${prefix}/settings/custom-agents`} replace />}
+          />
           <Route path={basename ? `${prefix}/*` : "*"} element={<NotFoundPage />} />
         </Route>
       </Routes>

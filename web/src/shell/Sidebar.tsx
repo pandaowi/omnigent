@@ -36,6 +36,7 @@ import {
   ArchiveIcon,
   ArrowUpDownIcon,
   ArchiveRestoreIcon,
+  BotIcon,
   CheckIcon as CheckMarkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -511,6 +512,7 @@ function useActiveNavItem(): {
   isCanvasPage: boolean;
   isTasksPage: boolean;
   isUsagePage: boolean;
+  isAgentsPage: boolean;
   activeExtensionPageId: string | null;
   newSessionProjectName: string | null;
 } {
@@ -532,6 +534,9 @@ function useActiveNavItem(): {
   // match the "tasks" segment by position from the end, not an absolute path.
   const isTasksPage = !isExtensionRoute && (leaf === "tasks" || segments.at(-2) === "tasks");
   const isUsagePage = !isExtensionRoute && leaf === "usage";
+  const isAgentsPage =
+    !isExtensionRoute &&
+    (location.pathname.includes("/custom-agents") || location.pathname.includes("/agents"));
   const activeExtensionPageId =
     resolveExtensionPageFromPath(extensions, location.pathname)?.page.id ?? null;
   const isNewSessionRoute =
@@ -541,6 +546,7 @@ function useActiveNavItem(): {
     !isCanvasPage &&
     !isTasksPage &&
     !isUsagePage &&
+    !isAgentsPage &&
     !isExtensionRoute;
   const requestedProject = isNewSessionRoute
     ? new URLSearchParams(location.search).get("project")
@@ -556,6 +562,7 @@ function useActiveNavItem(): {
     isCanvasPage,
     isTasksPage,
     isUsagePage,
+    isAgentsPage,
     activeExtensionPageId,
     newSessionProjectName,
   };
@@ -834,6 +841,7 @@ function SidebarImpl({
     isCanvasPage,
     isTasksPage,
     isUsagePage,
+    isAgentsPage,
     activeExtensionPageId,
     newSessionProjectName,
   } = useActiveNavItem();
@@ -1296,6 +1304,15 @@ function SidebarImpl({
                   )}
                 </Link>
               </Button>
+              <PrimaryNavLink
+                to="/settings/custom-agents"
+                label="Agents & Teams"
+                icon={BotIcon}
+                active={isAgentsPage}
+                onClick={onNavClick}
+                componentId="sidebar.agents_teams"
+                testId="agents-teams-nav"
+              />
               {canvasEnabled && (
                 <PrimaryNavLink
                   to={canvasDestination.pathname + canvasDestination.search}
