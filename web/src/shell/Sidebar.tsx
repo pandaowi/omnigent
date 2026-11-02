@@ -53,6 +53,7 @@ import {
   GitPullRequestIcon,
   InboxIcon,
   ListChecksIcon,
+  ListTodoIcon,
   ListFilterIcon,
   LaptopIcon,
   LayoutDashboardIcon,
@@ -1252,7 +1253,7 @@ function SidebarImpl({
                 data-testid="scheduled-tasks-nav"
               >
                 <Link to="/tasks" onClick={onNavClick} componentId="sidebar.tasks">
-                  <ClockIcon
+                  <ListTodoIcon
                     className={cn(
                       "ui-icon",
                       isTasksPage
@@ -1260,7 +1261,7 @@ function SidebarImpl({
                         : "text-muted-foreground",
                     )}
                   />
-                  Automations
+                  Tasks
                 </Link>
               </Button>
               <Button
