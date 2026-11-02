@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlusIcon, TrashIcon, UsersIcon, ShieldCheckIcon, Code2Icon, CompassIcon } from "lucide-react";
 import {
   Dialog,
@@ -57,21 +57,33 @@ export function CreateAgentTeamDialog({
   open,
   onOpenChange,
   onCreate,
+  initialName = "",
+  initialDescription = "",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (input: AgentBundleInput) => void | Promise<void>;
+  initialName?: string;
+  initialDescription?: string;
 }) {
   const { data: hosts = [] } = useHosts();
   const onlineHosts = hosts.filter((h) => h.status === "online");
 
-  const [teamName, setTeamName] = useState("");
-  const [description, setDescription] = useState("");
+  const [teamName, setTeamName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
   const [orchestratorHostId, setOrchestratorHostId] = useState("");
   const [orchestratorHarness, setOrchestratorHarness] = useState("codex");
   const [orchestratorModel, setOrchestratorModel] = useState("gpt-4o");
   const [roles, setRoles] = useState<TeamMemberRole[]>(DEFAULT_ROLES);
   const [pending, setPending] = useState(false);
+
+  // Sync initial props when dialog opens
+  useEffect(() => {
+    if (open) {
+      if (initialName) setTeamName(initialName);
+      if (initialDescription) setDescription(initialDescription);
+    }
+  }, [open, initialName, initialDescription]);
 
   // Model choices for orchestrator
   const { data: hostModels } = useHostModelOptions(

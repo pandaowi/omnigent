@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { BotIcon, PlusIcon, SearchIcon, TrashIcon, UsersIcon } from "lucide-react";
+import { BotIcon, CopyIcon, PlusIcon, SearchIcon, TrashIcon, UsersIcon } from "lucide-react";
 import { Link, useNavigate } from "@/lib/routing";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { customAgentsSettingsEnabled } from "@/lib/capabilities";
@@ -384,8 +384,11 @@ function AgentDetail({
   harness: string;
   onDeleted: () => void;
 }) {
+  const navigate = useNavigate();
+  const save = useSaveCustomAgent();
   const remove = useDeleteCustomAgent();
   const [confirm, setConfirm] = useState(false);
+  const [cloneOpen, setCloneOpen] = useState(false);
   const [inUse, setInUse] = useState<string | null>(null);
   function confirmDelete() {
     remove.reset();
@@ -408,20 +411,50 @@ function AgentDetail({
         <CustomAgentConfigForm id={agent.id} name={agent.name} onDelete={confirmDelete} />
       ) : (
         <>
-          <BackButton label="Custom agents" to={BASE} componentId="settings.custom_agents.back" />
+          <BackButton label="Agents & Teams" to={BASE} componentId="settings.custom_agents.back" />
           <div className="flex items-start justify-between gap-4">
-            <h1 className="min-w-0 break-words text-2xl font-semibold">{agent.name}</h1>
-            {owned === true && (
-              <Button variant="ghost" size="icon" aria-label="Delete agent" onClick={confirmDelete}>
-                <TrashIcon className="size-4" />
-              </Button>
-            )}
+            <div className="flex items-center gap-3 min-w-0">
+              <h1 className="min-w-0 break-words text-2xl font-semibold">{agent.name}</h1>
+              {agent.description?.toLowerCase().includes("team") && (
+                <span className="text-xs bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-semibold shrink-0">
+                  Team
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!canEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCloneOpen(true)}
+                  className="gap-1.5"
+                >
+                  <CopyIcon className="size-3.5" />
+                  Customize as My Team
+                </Button>
+              )}
+              {owned === true && (
+                <Button variant="ghost" size="icon" aria-label="Delete agent" onClick={confirmDelete}>
+                  <TrashIcon className="size-4" />
+                </Button>
+              )}
+            </div>
           </div>
           <p className="mt-3 text-ui text-muted-foreground">
             {agent.description || "No description."}
           </p>
         </>
       )}
+      <CreateAgentTeamDialog
+        open={cloneOpen}
+        onOpenChange={setCloneOpen}
+        initialName={`my-${agent.name}`}
+        initialDescription={agent.description || `Custom team based on ${agent.name}`}
+        onCreate={async (input) => {
+          const newAgent = await save.mutateAsync(input);
+          navigate(agentPath(newAgent.id));
+        }}
+      />
       <dl className="my-6 grid grid-cols-2 gap-4 text-ui">
         {!canEdit && (
           <div>
