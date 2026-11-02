@@ -141,6 +141,22 @@ export function ToolCard({
     [view, name, args],
   );
   const lineCounts = useMemo(() => view?.lineCounts?.(call) ?? null, [view, call]);
+  const fallbackLineCounts = useMemo<LineCounts | null>(() => {
+    if (lineCounts) return lineCounts;
+    if (!output || typeof output !== "string") return null;
+    const match =
+      output.match(/(?:\+|\+\s*)(\d+)\s*(?:additions?|added|insertions?\(\+\))?[,\s]+(?:-|\-\s*)(\d+)\s*(?:deletions?|deleted|deletions?\(\-\))?/i) ||
+      output.match(/(\d+)\s*insertions?\(\+\)[,\s]+(\d+)\s*deletions?\(\-\)/i);
+    if (match && match[1] && match[2]) {
+      const additions = parseInt(match[1], 10);
+      const removals = parseInt(match[2], 10);
+      if (additions > 0 || removals > 0) {
+        return { additions, removals };
+      }
+    }
+    return null;
+  }, [lineCounts, output]);
+  const activeLineCounts = lineCounts ?? fallbackLineCounts;
   const elapsedDuration = useElapsedDuration(state === "input-available" ? startedAt : null);
   const displayDuration = duration ?? elapsedDuration;
 
@@ -165,7 +181,7 @@ export function ToolCard({
         nativeToolType={nativeToolType}
         state={state}
         duration={displayDuration}
-        lineCounts={lineCounts}
+        lineCounts={activeLineCounts}
         onBodyClick={onBodyClick}
       />
       {/* The whole body, code panels included, sits on the Interface font's caption step. */}

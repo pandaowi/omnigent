@@ -226,7 +226,7 @@ export function BlockRenderer({
   hasPendingElicitation = false,
   lastActivityAtS,
   showsWorking = false,
-  defaultExpanded = false,
+  defaultExpanded = true,
   foldNarration = false,
   onRetryError,
 }: BlockRendererProps) {
@@ -629,16 +629,16 @@ function isProvisionalItem(item: RenderItem): boolean {
 function TurnWorkedFold({
   workedForS,
   animateCollapse,
-  defaultOpen,
+  defaultOpen = true,
   children,
 }: {
   workedForS?: number;
   animateCollapse: boolean;
-  defaultOpen: boolean;
+  defaultOpen?: boolean;
   children: ReactNode;
 }) {
   const label = workedForS !== undefined ? `Worked for ${formatWorkedFor(workedForS)}` : "Worked";
-  const [open, setOpen] = useState(animateCollapse || defaultOpen);
+  const [open, setOpen] = useState(defaultOpen);
   const userChangedOpenRef = useRef(false);
   useLayoutEffect(() => {
     // History hydration can identify an interjection after this fold mounted.
@@ -772,7 +772,11 @@ function formatWorkedFor(seconds: number): string {
  * the tail window.
  */
 function partitionToolRun(run: RenderItem[], isStreamingRun: boolean): ToolRunFragment[] {
-  const tailStart = isStreamingRun ? Math.max(0, run.length - STREAMING_TAIL) : run.length;
+  // Better-Paseo style: runs of up to 4 tools render as standalone compact cards with diff badges.
+  if (run.length <= 4) {
+    return run.map((tool, index) => ({ kind: "standalone", tool, index }));
+  }
+  const tailStart = isStreamingRun ? Math.max(0, run.length - STREAMING_TAIL) : Math.max(0, run.length - 2);
   const fragments: ToolRunFragment[] = [];
   let group: RenderItem[] = [];
   const flushGroup = () => {

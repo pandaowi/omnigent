@@ -1142,7 +1142,7 @@ function AssistantBubble({
             hasPendingElicitation={hasPendingElicitation}
             lastActivityAtS={bubble.lastActivityAtS}
             showsWorking={showsWorking}
-            defaultExpanded={bubble.defaultExpanded}
+            defaultExpanded={bubble.defaultExpanded ?? true}
             foldNarration={foldNarration}
             onRetryError={recoveryDisabled ? undefined : handleRetryError}
           />

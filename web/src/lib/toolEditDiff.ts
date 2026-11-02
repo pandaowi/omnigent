@@ -54,7 +54,7 @@ const CONTEXT_LINES = 2;
 const MAX_LINE_DIFF_CELLS = 250_000;
 
 /** Claude `Edit`/`MultiEdit`, Omnigent `sys_os_edit`, Pi and OpenCode `edit`. */
-const EDIT_PAIR_TOOLS = new Set(["Edit", "MultiEdit", "sys_os_edit", "edit"]);
+const EDIT_PAIR_TOOLS = new Set(["Edit", "MultiEdit", "sys_os_edit", "edit", "edit_file"]);
 
 /** Claude `Write`, Omnigent `sys_os_write`, Pi and OpenCode `write`. */
 const WRITE_TOOLS = new Set(["Write", "sys_os_write", "write"]);
