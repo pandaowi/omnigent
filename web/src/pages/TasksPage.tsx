@@ -12,13 +12,21 @@
  */
 
 import { useMemo, useState } from "react";
-import { ClockIcon, Loader2Icon, SearchIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  ClockIcon,
+  LayoutGridIcon,
+  LayoutListIcon,
+  Loader2Icon,
+  SearchIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { PageScroll } from "@/components/PageScroll";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useOmnigentAnalytics } from "@/lib/analytics";
 import { CreateScheduledTaskDialog } from "@/components/scheduled/CreateScheduledTaskDialog";
 import { ScheduledTaskRow } from "@/components/scheduled/ScheduledTaskRow";
+import { TasksBoard } from "@/components/scheduled/TasksBoard";
 import {
   SCHEDULED_TASK_SUGGESTIONS,
   type ScheduledTaskSuggestion,
@@ -65,6 +73,7 @@ export function TasksPage() {
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterTab>("all");
+  const [viewMode, setViewMode] = useState<"board" | "list">("board");
   const [manualOpen, setManualOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
   // Prefill for the manual create dialog when opened from a "Suggestions" chip.
@@ -216,30 +225,71 @@ export function TasksPage() {
             className="pl-9"
           />
         </div>
-        {hasAnyTasks && (
-          <div aria-label="Filter automations" className="flex items-center gap-1">
-            {FILTER_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                type="button"
-                aria-pressed={filter === tab.value}
-                data-testid={`tasks-filter-${tab.value}`}
-                onClick={() => {
-                  trackClick(`tasks.filter_${tab.value}`, "button");
-                  setFilter(tab.value);
-                }}
-                className={cn(
-                  "rounded-md px-3 py-1 text-ui font-medium transition-colors",
-                  filter === tab.value
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {hasAnyTasks && (
+            <div aria-label="Filter automations" className="flex items-center gap-1">
+              {FILTER_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  aria-pressed={filter === tab.value}
+                  data-testid={`tasks-filter-${tab.value}`}
+                  onClick={() => {
+                    trackClick(`tasks.filter_${tab.value}`, "button");
+                    setFilter(tab.value);
+                  }}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-ui font-medium transition-colors",
+                    filter === tab.value
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center rounded-lg border border-border bg-card/60 p-0.5 ml-auto">
+            <button
+              type="button"
+              onClick={() => {
+                trackClick("tasks.view_board", "button");
+                setViewMode("board");
+              }}
+              data-testid="tasks-view-board"
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                viewMode === "board"
+                  ? "bg-muted text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title="Board View (Better-Paseo Kanban)"
+            >
+              <LayoutGridIcon className="size-3.5" />
+              <span>Board</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                trackClick("tasks.view_list", "button");
+                setViewMode("list");
+              }}
+              data-testid="tasks-view-list"
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                viewMode === "list"
+                  ? "bg-muted text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title="List View"
+            >
+              <LayoutListIcon className="size-3.5" />
+              <span>List</span>
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {isError ? (
@@ -270,6 +320,16 @@ export function TasksPage() {
           showSuggestions={filter === "all"}
           onPickSuggestion={openFromSuggestion}
           onPickTrigger={triggersSupported ? openFromTrigger : null}
+        />
+      ) : viewMode === "board" ? (
+        <TasksBoard
+          tasks={filtered}
+          now={now}
+          busyId={busyId}
+          onEdit={handleEdit}
+          onPauseToggle={handlePauseToggle}
+          onRunNow={handleRunNow}
+          onDelete={handleDelete}
         />
       ) : (
         // Card list — each row is a bordered card (see ScheduledTaskRow), stacked
