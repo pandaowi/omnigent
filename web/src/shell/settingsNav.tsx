@@ -138,7 +138,7 @@ export function settingsNavGroups(
   if (customAgentsEnabled) {
     groups.push({
       title: "Customize",
-      items: [harnesses, { id: "custom-agents", label: "Custom agents", icon: BotIcon }],
+      items: [harnesses, { id: "custom-agents", label: "Agents & Teams", icon: BotIcon }],
     });
   }
   // Keep shell-specific settings directly after the cross-platform preferences.
