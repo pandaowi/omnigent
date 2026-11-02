@@ -22,28 +22,30 @@ export function SubagentActivityMessage({ data }: { data: Record<string, unknown
   }
   return (
     <div
-      className="not-prose flex w-full items-center gap-2 py-2 text-sm text-muted-foreground"
+      className="not-prose my-2 flex w-full items-center gap-2 text-xs text-muted-foreground"
       data-testid="subagent-activity"
       data-phase={activity.phase}
       data-child-session-id={activity.sessionId}
     >
-      <span aria-hidden="true" className="min-w-0 flex-1 border-t border-dashed border-border" />
-      <div className="flex min-w-0 max-w-[85%] items-center gap-1.5 rounded-full border border-transparent px-3 py-1 text-center transition-colors hover:border-border focus-within:border-border">
-        <BotIcon aria-hidden="true" className="size-4 shrink-0" />
-        <span className="min-w-0 break-words">
-          {label}{" "}
+      <span aria-hidden="true" className="min-w-0 flex-1 border-t border-border/40" />
+      <div className="flex min-w-0 max-w-[85%] items-center gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-1.5 text-center transition-all duration-150 hover:bg-muted/40 hover:border-border">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+          <BotIcon aria-hidden="true" className="size-3.5" />
+        </span>
+        <span className="min-w-0 break-words font-medium">
+          <span className="text-muted-foreground mr-1.5">{label}</span>
           <Link
             to={to}
             onClick={(event) => {
               openInPanel(activity.sessionId, event);
             }}
-            className="rounded-sm font-semibold text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded font-semibold text-foreground hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             {activity.title}
           </Link>
         </span>
       </div>
-      <span aria-hidden="true" className="min-w-0 flex-1 border-t border-dashed border-border" />
+      <span aria-hidden="true" className="min-w-0 flex-1 border-t border-border/40" />
     </div>
   );
 }

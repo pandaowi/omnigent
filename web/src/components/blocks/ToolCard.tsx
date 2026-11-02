@@ -154,7 +154,10 @@ export function ToolCard({
   const onBodyClick = openFile && linkPath ? () => openFile(linkPath) : undefined;
 
   return (
-    <Collapsible defaultOpen={false} className="group not-prose w-full">
+    <Collapsible
+      defaultOpen={false}
+      className="group not-prose w-full my-1 rounded-lg border border-border/60 bg-muted/20 transition-all duration-150 hover:border-border/80 hover:bg-muted/30 group-data-[state=open]:bg-muted/40 group-data-[state=open]:border-border"
+    >
       <ToolTriggerRow
         title={title}
         displayPath={linkPath}
@@ -166,7 +169,7 @@ export function ToolCard({
         onBodyClick={onBodyClick}
       />
       {/* The whole body, code panels included, sits on the Interface font's caption step. */}
-      <CollapsibleContent className="mt-1 ml-2 space-y-2 border-l pl-3 py-1 text-sm [&_code]:text-sm [&_pre]:text-sm data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in">
+      <CollapsibleContent className="border-t border-border/50 bg-card/30 p-2.5 text-sm [&_code]:text-xs [&_pre]:text-xs data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in">
         <DefaultToolBody call={call} duration={displayDuration} view={view} />
       </CollapsibleContent>
     </Collapsible>
@@ -407,18 +410,27 @@ function RawToggleButton({ pressed, onToggle }: { pressed: boolean; onToggle: ()
  */
 export function ToolGroupSummary({ tools }: { tools: RenderItem[] }) {
   const label = formatToolRunLabel(tools.map(toolRunCall));
+  const count = tools.length;
   return (
     // Named `group/tool-summary` so this collapsible only rotates its
-    // OWN chevron (line 296 in `ToolTriggerRow` uses an unnamed
-    // `group-data-[state=open]:rotate-90` that would otherwise match
-    // any ancestor `.group[data-state=open]` and incorrectly rotate
-    // chevrons of inner tool cards when this outer group is open).
-    <Collapsible defaultOpen={false} className="group/tool-summary not-prose w-full">
-      <CollapsibleTrigger className="flex cursor-pointer items-center gap-1.5 py-0.5 text-left text-muted-foreground text-ui transition-colors hover:text-foreground">
-        <span>{label}</span>
-        <ChevronRightIcon className="size-3.5 shrink-0 transition-transform group-data-[state=open]/tool-summary:rotate-90" />
+    // OWN chevron.
+    <Collapsible
+      defaultOpen={false}
+      className="group/tool-summary not-prose w-full my-1.5 rounded-lg border border-border/60 bg-muted/25 transition-all duration-150 hover:bg-muted/40 hover:border-border group-data-[state=open]/tool-summary:bg-muted/40 group-data-[state=open]/tool-summary:border-border"
+    >
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:text-foreground">
+        <span className="flex items-center gap-2 min-w-0">
+          <Badge
+            variant="outline"
+            className="h-4 px-1.5 rounded-full text-[10px] font-semibold bg-background/80 border-border/60 text-muted-foreground"
+          >
+            {count}
+          </Badge>
+          <span className="truncate font-medium">{label}</span>
+        </span>
+        <ChevronRightIcon className="size-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]/tool-summary:rotate-90" />
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-1 ml-2 space-y-1 border-l pl-3 pt-1 pb-0 data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in">
+      <CollapsibleContent className="space-y-1.5 border-t border-border/50 bg-card/20 p-2.5 text-xs data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in">
         {tools.map((item) => {
           if (item.kind === "tool") {
             return (
@@ -493,17 +505,16 @@ function ToolTriggerRow({
   return (
     <CollapsibleTrigger
       title={tooltip}
-      className="block w-full cursor-pointer py-0.5 text-left text-muted-foreground text-ui transition-colors hover:text-foreground"
+      className="flex w-full cursor-pointer items-center justify-between px-2.5 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:text-foreground"
     >
-      <span className="flex w-full items-center gap-1.5">
+      <span className="flex w-full items-center gap-2 min-w-0">
         <StatusIcon name={name} nativeToolType={nativeToolType} state={state} />
         {/* Only the title truncates, so the counts beside it stay visible. */}
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-[11px]">
           <span className="min-w-0 truncate">
             {title.verb !== null && (
-              <span className="font-medium text-foreground">{title.verb}</span>
+              <span className="font-semibold text-foreground mr-1">{title.verb}</span>
             )}
-            {title.verb !== null && title.body.length > 0 && " "}
             <ToolTitleBody title={title} displayPath={displayPath} onBodyClick={onBodyClick} />
           </span>
           {lineCounts !== null && <ToolLineCounts counts={lineCounts} />}
@@ -511,15 +522,17 @@ function ToolTriggerRow({
         {title.server !== undefined && (
           <Badge
             variant="outline"
-            className="h-[1.15rem] shrink-0 rounded px-1 font-normal text-muted-foreground text-sm"
+            className="h-4 shrink-0 rounded px-1 font-normal text-[10px] text-muted-foreground bg-background/50 border-border/50"
           >
             {mcpServerDisplayName(title.server)}
           </Badge>
         )}
         {duration !== undefined && (
-          <span className="shrink-0 tabular-nums opacity-70">{formatToolDuration(duration)}</span>
+          <span className="shrink-0 tabular-nums text-[10px] px-1.5 py-0.5 rounded bg-background/50 border border-border/40 text-muted-foreground/80 font-mono">
+            {formatToolDuration(duration)}
+          </span>
         )}
-        <ChevronRightIcon className="size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-90" />
       </span>
     </CollapsibleTrigger>
   );
@@ -528,13 +541,16 @@ function ToolTriggerRow({
 /** An edit's "+4 -2", leaving out a zero side. */
 function ToolLineCounts({ counts }: { counts: LineCounts }) {
   return (
-    <span data-testid="tool-line-counts" className="shrink-0 tabular-nums">
+    <span data-testid="tool-line-counts" className="inline-flex items-center gap-1 shrink-0 tabular-nums font-mono text-[10px]">
       {counts.additions > 0 && (
-        <span className={DIFF_TONE_CLASS.added}>+{counts.additions.toLocaleString()}</span>
+        <span className="rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1 py-0.5 border border-emerald-500/20 font-medium">
+          +{counts.additions.toLocaleString()}
+        </span>
       )}
-      {counts.additions > 0 && counts.removals > 0 && " "}
       {counts.removals > 0 && (
-        <span className={DIFF_TONE_CLASS.removed}>-{counts.removals.toLocaleString()}</span>
+        <span className="rounded bg-destructive/10 text-destructive px-1 py-0.5 border border-destructive/20 font-medium">
+          -{counts.removals.toLocaleString()}
+        </span>
       )}
     </span>
   );

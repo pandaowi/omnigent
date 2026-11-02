@@ -88,7 +88,10 @@ export const Reasoning = memo(
     return (
       <ReasoningContext.Provider value={contextValue}>
         <Collapsible
-          className={cn("not-prose", className)}
+          className={cn(
+            "not-prose my-1.5 rounded-lg border border-border/60 bg-muted/20 transition-all duration-150 hover:border-border/80 group-data-[state=open]:bg-muted/30 group-data-[state=open]:border-border",
+            className,
+          )}
           // Radix locks interaction when disabled — keeps the header from
           // being clickable / focusable when there's nothing to reveal.
           disabled={!expandable}
@@ -135,12 +138,12 @@ export const ReasoningTrigger = memo(
 
     const label = (
       <>
-        <SparklesIcon className="size-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">{getThinkingMessage(isStreaming, duration)}</span>
+        <SparklesIcon className="size-3.5 shrink-0 text-amber-500/80" />
+        <span className="min-w-0 flex-1 truncate font-medium">{getThinkingMessage(isStreaming, duration)}</span>
         {expandable && (
           <ChevronRightIcon
             className={cn(
-              "size-3.5 shrink-0 transition-transform",
+              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
               isOpen ? "rotate-90" : "rotate-0",
             )}
           />
@@ -155,7 +158,7 @@ export const ReasoningTrigger = memo(
       return (
         <div
           className={cn(
-            "flex w-full items-center gap-1.5 py-0.5 text-left text-muted-foreground text-sm",
+            "flex w-full items-center justify-between px-2.5 py-1.5 text-left text-muted-foreground text-xs",
             className,
           )}
         >
@@ -167,7 +170,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-muted-foreground text-sm transition-colors hover:text-foreground",
+          "flex w-full cursor-pointer items-center justify-between px-2.5 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:text-foreground",
           className,
         )}
         {...props}
@@ -195,7 +198,7 @@ export const ReasoningContent = memo(({ className, children, ...props }: Reasoni
   return (
     <CollapsibleContent
       className={cn(
-        "mt-1 ml-2 border-l pl-3 py-1 text-sm",
+        "border-t border-border/50 bg-card/25 p-3 text-xs leading-relaxed",
         "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
         className,
       )}
