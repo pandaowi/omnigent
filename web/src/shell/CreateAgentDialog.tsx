@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PlusIcon, TrashIcon, UploadIcon } from "lucide-react";
 import {
   Dialog,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { BRAIN_HARNESS_LABELS, useBrainHarnessLabels } from "@/lib/agentLabels";
 import type { AgentBundleInput, MCPServerInput } from "@/lib/agentBundle";
+import { useHosts, useHostModelOptions } from "@/hooks/useHosts";
 
 /**
  * Harness options for the picker. "default" uses the server's default
@@ -291,11 +292,10 @@ export function CreateAgentForm({
 }
 
 function useAgentFormFields() {
+  const { data: hosts = [] } = useHosts();
   const brainHarnessLabels = useBrainHarnessLabels();
-  const harnessOptions = Object.entries(brainHarnessLabels).map(([value, label]) => ({
-    value,
-    label,
-  }));
+
+  const [hostId, setHostId] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -304,12 +304,80 @@ function useAgentFormFields() {
   const [mcpEntries, setMcpEntries] = useState<MCPFormEntry[]>([]);
   const [nextKey, setNextKey] = useState(0);
 
+  // Auto-select first online host when hosts become available if not explicitly chosen
+  useEffect(() => {
+    if (!hostId && hosts.length > 0) {
+      const firstOnline = hosts.find((h) => h.status === "online");
+      if (firstOnline) {
+        setHostId(firstOnline.host_id);
+      }
+    }
+  }, [hosts, hostId]);
+
+  const selectedHost = useMemo(() => hosts.find((h) => h.host_id === hostId), [hosts, hostId]);
+
+  const harnessOptions = useMemo(() => {
+    const list: { value: string; label: string; badge?: string }[] = [
+      { value: "codex", label: "Codex (Runner Native CLI)" },
+      { value: "opencode", label: "OpenCode (Runner Native CLI)" },
+      { value: "antigravity-native", label: "Antigravity CLI (Runner Native)" },
+      { value: "claude-native", label: "Claude Code CLI (Runner Native)" },
+      { value: "claude-sdk", label: "Claude SDK (Cloud API Key)" },
+      { value: "openai-agents", label: "OpenAI Agents (Cloud API Key)" },
+      { value: "cursor", label: "Cursor" },
+      { value: "pi", label: "Pi" },
+      { value: "copilot", label: "Copilot" },
+    ];
+
+    for (const [val, lbl] of Object.entries(brainHarnessLabels)) {
+      if (!list.some((item) => item.value === val)) {
+        list.push({ value: val, label: lbl });
+      }
+    }
+
+    if (!selectedHost?.configured_harnesses) return list;
+
+    return list.map((opt) => {
+      const cfg = selectedHost.configured_harnesses;
+      const isReady =
+        cfg?.[opt.value] === true ||
+        cfg?.[`${opt.value}-native`] === true ||
+        (opt.value === "antigravity-native" &&
+          (cfg?.["antigravity"] === true || cfg?.["antigravity-native"] === true));
+      return {
+        ...opt,
+        badge: isReady ? "Ready on host" : opt.badge,
+      };
+    });
+  }, [brainHarnessLabels, selectedHost]);
+
+  // Model choices live-probed from selected host
+  const { data: hostModels, isLoading: loadingModels } = useHostModelOptions(
+    hostId || null,
+    harness,
+    Boolean(hostId),
+  );
+
+  useEffect(() => {
+    if (hostModels && hostModels.length > 0) {
+      const exists = hostModels.some((m) => m.id === model || m.model === model);
+      if (!model || !exists) {
+        const def = hostModels.find((m) => m.isDefault) ?? hostModels[0];
+        if (def) {
+          setModel(def.id || def.model || "");
+        }
+      }
+    }
+  }, [hostModels, harness]);
+
   function reset() {
     setName("");
     setDescription("");
     setInstructions("");
     setHarness(DEFAULT_HARNESS);
     setModel("");
+    const firstOnline = hosts.find((h) => h.status === "online");
+    setHostId(firstOnline?.host_id ?? "");
     setMcpEntries([]);
     setNextKey(0);
   }
@@ -337,11 +405,15 @@ function useAgentFormFields() {
       instructions: instructions.trim() || undefined,
       harness,
       model: model.trim(),
+      hostId: hostId.trim() || undefined,
       mcpServers: toMCPInputs(mcpEntries),
     };
   }
 
   return {
+    hosts,
+    hostId,
+    setHostId,
     name,
     setName,
     description,
@@ -353,6 +425,8 @@ function useAgentFormFields() {
     harnessOptions,
     model,
     setModel,
+    hostModels,
+    loadingModels,
     mcpEntries,
     addMCPServer,
     removeMCPServer,
@@ -365,6 +439,9 @@ function useAgentFormFields() {
 }
 
 function AgentFormFields({
+  hosts,
+  hostId,
+  setHostId,
   name,
   setName,
   description,
@@ -376,6 +453,8 @@ function AgentFormFields({
   harnessOptions,
   model,
   setModel,
+  hostModels,
+  loadingModels,
   mcpEntries,
   addMCPServer,
   removeMCPServer,
@@ -427,6 +506,42 @@ function AgentFormFields({
         />
       </div>
 
+      {/* Runtime / Runner Host (Multica style) */}
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor="create-agent-host"
+          className="text-sm font-medium text-muted-foreground flex items-center justify-between"
+        >
+          <span>Runtime / Runner Host</span>
+          <span className="text-xs text-muted-foreground font-normal">
+            {hostId ? "Executes on runner" : "Any / Cloud"}
+          </span>
+        </label>
+        <Select
+          value={hostId || "__any__"}
+          onValueChange={(val) => setHostId(val === "__any__" ? "" : val)}
+          componentId="create_agent.host"
+          valueHasNoPii
+        >
+          <SelectTrigger
+            id="create-agent-host"
+            aria-label="Runtime Host"
+            data-testid="create-agent-host"
+            className="w-full"
+          >
+            <SelectValue placeholder="Select runtime host" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__any__">Any / Cloud (Standard)</SelectItem>
+            {hosts.map((h) => (
+              <SelectItem key={h.host_id} value={h.host_id}>
+                {h.name} {h.status === "online" ? "● Online" : "○ Offline"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Harness */}
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium text-muted-foreground">
@@ -444,7 +559,14 @@ function AgentFormFields({
           <SelectContent>
             {harnessOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
+                <div className="flex items-center justify-between gap-2 w-full">
+                  <span>{opt.label}</span>
+                  {opt.badge && (
+                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                      {opt.badge}
+                    </span>
+                  )}
+                </div>
               </SelectItem>
             ))}
           </SelectContent>
@@ -453,16 +575,64 @@ function AgentFormFields({
 
       {/* Model */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="create-agent-model" className="text-sm font-medium text-muted-foreground">
-          Model <span className="text-destructive">*</span>
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="create-agent-model" className="text-sm font-medium text-muted-foreground">
+            Model <span className="text-destructive">*</span>
+          </label>
+          {loadingModels && (
+            <span className="text-xs text-muted-foreground animate-pulse">
+              Detecting models on host…
+            </span>
+          )}
+        </div>
+
+        {hostModels && hostModels.length > 0 && (
+          <div className="mb-1">
+            <Select
+              value={model}
+              onValueChange={(val) => setModel(val)}
+              componentId="create_agent.model_select"
+              valueHasNoPii
+            >
+              <SelectTrigger
+                aria-label="Select detected model"
+                data-testid="create-agent-model-select"
+                className="w-full"
+              >
+                <SelectValue placeholder="Pick from detected models on host..." />
+              </SelectTrigger>
+              <SelectContent>
+                {hostModels.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    <div className="flex items-center justify-between gap-2 w-full">
+                      <span>{m.displayName || m.model || m.id}</span>
+                      {m.isDefault && (
+                        <span className="text-xs text-emerald-500 font-medium">(Default)</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <Input
           id="create-agent-model"
           data-testid="create-agent-model"
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder="claude-sonnet-4-20250514"
+          placeholder={
+            hostModels && hostModels.length > 0
+              ? "Or type a custom model identifier..."
+              : "e.g. gpt-4o, claude-sonnet-4-20250514, gemini-2.5-pro"
+          }
         />
+        {hostModels && hostModels.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Selected from detected runner models, or customize the identifier manually.
+          </p>
+        )}
       </div>
 
       {/* Instructions / System Prompt */}

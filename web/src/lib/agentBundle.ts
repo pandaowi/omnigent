@@ -27,10 +27,12 @@ export interface AgentBundleInput {
   name: string;
   description?: string;
   instructions?: string;
-  /** Harness kind, e.g. "claude-sdk", "openai-agents". */
+  /** Harness kind, e.g. "claude-sdk", "openai-agents", "codex", "opencode", "antigravity". */
   harness: string;
   /** Model identifier, e.g. "claude-sonnet-4-20250514". Required by the omnigent executor. */
   model: string;
+  /** Runtime / Runner host id where this agent executes (Multica-style). */
+  hostId?: string;
   /** MCP server declarations to include as inline tools entries. */
   mcpServers?: MCPServerInput[];
 }
@@ -56,6 +58,9 @@ export async function buildAgentBundle(input: AgentBundleInput): Promise<File> {
   lines.push(`  model: ${input.model}`);
   lines.push("  config:");
   lines.push(`    harness: ${input.harness}`);
+  if (input.hostId) {
+    lines.push(`    host_id: ${yamlQuote(input.hostId)}`);
+  }
   lines.push("");
 
   lines.push("tools:");

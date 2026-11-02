@@ -5453,6 +5453,9 @@ export function NewChatLandingScreen() {
     agentFromConfigRef.current = false;
     setPickedAgentId(agent.id);
     writeLastAgentId(agent.id);
+    if (agent.host_id) {
+      selectHost(agent.host_id);
+    }
     if (pickerEdits?.agentId !== agent.id) {
       setPickerEdits(
         pickerLoading
@@ -7727,6 +7730,9 @@ export function NewChatLandingScreen() {
         onOpenChange={setCreateAgentOpen}
         onCreate={(input) => {
           setPendingAgent(input);
+          if (input.hostId) {
+            selectHost(input.hostId);
+          }
           handleSelectPending();
         }}
         onImport={

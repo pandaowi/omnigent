@@ -21,6 +21,8 @@ export interface AvailableAgent {
   // the agent's spec. Lets the picker recognise Codex vs Claude agents
   // by kind rather than by name slug.
   harness: string | null;
+  /** Host / runtime ID where this agent runs (Multica-style). */
+  host_id?: string | null;
   // Skills bundled in the agent spec (name + one-line description).
   // Shown while discovery loads; the skills endpoint returns the effective catalog.
   // Empty on older servers without the field.
@@ -131,6 +133,7 @@ interface BuiltinAgentWire {
   name: string;
   description?: string | null;
   harness?: string | null;
+  host_id?: string | null;
   skills?: SkillSummary[];
   // True only for server-seeded built-ins (deterministic id). Absent on
   // older servers, where every catalog row degrades to a protected entry.
@@ -191,6 +194,7 @@ function agentFromWire(a: BuiltinAgentWire): AvailableAgent {
     description: a.description ?? null,
     harness: a.harness ?? null,
     skills: a.skills ?? [],
+    ...(a.host_id ? { host_id: a.host_id } : {}),
     // Omit rather than set to undefined so toEqual comparisons aren't
     // sensitive to absent-vs-undefined. Logic that reads builtin treats
     // undefined as "protected" (same as true), so omission is safe.
@@ -271,6 +275,7 @@ interface AgentObjectWire {
   name: string;
   description?: string | null;
   harness?: string | null;
+  host_id?: string | null;
   skills?: SkillSummary[];
 }
 
