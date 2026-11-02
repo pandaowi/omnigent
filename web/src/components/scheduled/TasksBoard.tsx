@@ -108,10 +108,12 @@ export function TasksBoard({
     const completed: ScheduledTask[] = [];
 
     for (const task of tasks) {
-      if (busyId === task.id) {
+      if (busyId === task.id || task.lastRunStatus === "running") {
         running.push(task);
       } else if (task.state === "paused") {
         paused.push(task);
+      } else if (task.lastRunStatus === "succeeded" || task.state === "completed") {
+        completed.push(task);
       } else if (task.state === "active") {
         active.push(task);
       } else {
