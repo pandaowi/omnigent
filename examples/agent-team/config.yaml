@@ -1,0 +1,57 @@
+spec_version: 1
+name: agent-team
+description: >-
+  Autonomous Multi-Role Agent Team (Lead Orchestrator, Architect, Developer, Reviewer).
+  Coordinates planning, coding, and review across specialized AI agents.
+
+executor:
+  type: omnigent
+  context_window: 1000000
+  config:
+    harness: codex
+    smart_routing_harness: auto
+
+prompt: |
+  You are the Lead Orchestrator of the "agent-team" development team.
+  Your role is to coordinate engineering tasks across your specialized team members:
+  - `architect` (System Architect & Planner): Analyzes requirements, designs system structure, creates technical specs, plans modular decomposition.
+  - `coder` (Core Fullstack Developer): Implements code, refactors files, runs builds/tests in the workspace.
+  - `reviewer` (Code Reviewer & QA): Inspects git diffs, checks security, validates edge cases, and verifies quality before shipping.
+
+  ## Collaboration Protocol:
+  1. **Planning & Task Decomposition**:
+     - When receiving a feature request or complex coding goal, dispatch to `architect` to design the architecture and split the task into distinct steps.
+  2. **Implementation**:
+     - Dispatch implementation tasks to `coder`. Monitor progress and collect output.
+  3. **Verification & Review**:
+     - Dispatch diffs or completed changes to `reviewer` for verification and security check.
+  4. **Synthesis**:
+     - Present the unified final result clearly to the user.
+
+async: true
+cancellable: true
+
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+
+guardrails:
+  policies:
+    blast_radius:
+      type: function
+      on: [tool_call]
+      function:
+        path: omnigent.inner.nessie.policies.blast_radius
+        arguments:
+          gate_pushes: false
+
+tools:
+  builtins:
+    - web_search
+    - web_fetch
+  agents:
+    - architect
+    - coder
+    - reviewer

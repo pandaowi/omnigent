@@ -570,6 +570,7 @@ WELL_KNOWN_MANIFEST_VERSION = 1
 _WEB_UI_GZIP_MINIMUM_SIZE = 1024
 _DEBBY_AGENT_NAME = "debby"
 _POLLY_AGENT_NAME = "polly"
+_AGENT_TEAM_AGENT_NAME = "agent-team"
 _UNMATCHED_ROUTE_TEMPLATE = "<unmatched>"
 _SESSION_PATH_RE = re.compile(r"/v1/sessions/([^/]+)")
 
@@ -634,6 +635,7 @@ def _error_audit_extra(
 # Windows checkout (where Git leaves it as a stub text file); a no-op elsewhere.
 _DEBBY_BUNDLE_SOURCE = resolve_repo_symlink(Path(_examples_resources.__file__).parent / "debby")
 _POLLY_BUNDLE_SOURCE = resolve_repo_symlink(Path(_examples_resources.__file__).parent / "polly")
+_AGENT_TEAM_BUNDLE_SOURCE = resolve_repo_symlink(Path(_examples_resources.__file__).parent / "agent-team")
 
 
 class _FastAPICallNext(Protocol):
@@ -1010,6 +1012,7 @@ def _ensure_default_agents(
         | _ensure_default_acp_agents(agent_store, artifact_store, agent_cache, allowlist)
         | _ensure_default_debby_agent(agent_store, artifact_store, agent_cache, allowlist)
         | _ensure_default_polly_agent(agent_store, artifact_store, agent_cache, allowlist)
+        | _ensure_default_agent_team(agent_store, artifact_store, agent_cache, allowlist)
     )
     extras = _ensure_extra_builtin_agents(agent_store, artifact_store, agent_cache)
     if allowlist is None:
@@ -1459,6 +1462,44 @@ def _ensure_default_polly_agent(
         agent_cache,
         name=_POLLY_AGENT_NAME,
         bundle_bytes=_build_polly_bundle(),
+    )
+    return owned
+
+
+def _build_agent_team_bundle() -> bytes:
+    """Build a gzipped tarball of the examples/agent-team agent bundle."""
+    import tempfile
+
+    from omnigent.spec import materialize_bundle
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bundle_dir = materialize_bundle(_AGENT_TEAM_BUNDLE_SOURCE, Path(tmpdir) / "bundle")
+        return _tar_gz_dir(bundle_dir)
+
+
+def _ensure_default_agent_team(
+    agent_store: AgentStore,
+    artifact_store: ArtifactStore,
+    agent_cache: Any,
+    allowlist: frozenset[str] | None = None,
+) -> frozenset[str]:
+    """Register the agent-team multi-role orchestrator agent if its bundle ships here."""
+    owned = frozenset({_AGENT_TEAM_AGENT_NAME})
+    if not seeded_agent_allowed(_AGENT_TEAM_AGENT_NAME, allowlist):
+        return owned
+    if not (_AGENT_TEAM_BUNDLE_SOURCE / "config.yaml").is_file():
+        _logger.debug(
+            "agent-team bundle not found at %s; skipping seed",
+            _AGENT_TEAM_BUNDLE_SOURCE,
+        )
+        return owned
+
+    _ensure_builtin_agent(
+        agent_store,
+        artifact_store,
+        agent_cache,
+        name=_AGENT_TEAM_AGENT_NAME,
+        bundle_bytes=_build_agent_team_bundle(),
     )
     return owned
 

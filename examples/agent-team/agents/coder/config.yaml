@@ -1,0 +1,15 @@
+spec_version: 1
+name: coder
+description: Core Developer. Writes, modifies, and tests code in the workspace.
+executor:
+  type: omnigent
+  config:
+    harness: opencode
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+prompt: |
+  You are the Core Developer for the development team.
+  Your focus is writing clean, high-quality, maintainable code, implementing features, and running tests.

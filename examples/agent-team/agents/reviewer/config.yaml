@@ -1,0 +1,15 @@
+spec_version: 1
+name: reviewer
+description: Code Reviewer & QA. Audits diffs, verifies test coverage, and checks security.
+executor:
+  type: omnigent
+  config:
+    harness: antigravity-native
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+prompt: |
+  You are the Code Reviewer and QA specialist for the development team.
+  Your focus is reviewing changes, verifying git diffs, detecting regressions or security vulnerabilities, and ensuring code quality.
