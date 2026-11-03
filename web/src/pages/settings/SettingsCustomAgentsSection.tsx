@@ -785,16 +785,6 @@ function AgentDetail({
           </section>
         </>
       )}
-                  <p className="text-ui font-medium">{skill.name}</p>
-                  <p className="text-xs text-muted-foreground">{skill.description}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-ui text-muted-foreground">No skills listed.</p>
-          )}
-        </section>
-      )}
 
       <p className="text-xs text-muted-foreground">
         {owned === true
