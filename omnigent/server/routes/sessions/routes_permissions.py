@@ -422,6 +422,7 @@ def _to_agent_object(
     # YAML agents don't persist it at registration today). Lets the
     # new-session picker show a hover description without a migration.
     description: str | None = agent.description
+    instructions: str | None = None
     if cache is not None:
         try:
             loaded = cache.load(
@@ -430,6 +431,7 @@ def _to_agent_object(
             harness = loaded.spec.executor.harness_kind
             if description is None:
                 description = loaded.spec.description
+            instructions = loaded.spec.instructions
             # Declared terminal names, in spec order — the Web UI
             # gates its "new terminal" affordance on this list.
             terminals = (
@@ -484,6 +486,7 @@ def _to_agent_object(
         name=agent.name,
         version=agent.version,
         description=description,
+        instructions=instructions,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
         harness=harness,

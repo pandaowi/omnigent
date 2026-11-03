@@ -40,6 +40,7 @@ export interface Agent {
    * Required by the spec_version: 1 parser, so always present. */
   name: string;
   description?: string | null;
+  instructions?: string | null;
   /** Harness/kind, e.g. "claude-native", "codex", "claude_sdk". null when
    * the spec couldn't be loaded. Only populated by `useSessionAgent`
    * (the sessions-derived `useAgents` list leaves it undefined). */
@@ -75,6 +76,7 @@ interface AgentObjectWire {
   object: "agent";
   name: string;
   description?: string | null;
+  instructions?: string | null;
   harness?: string | null;
   mcp_servers?: McpServerSummary[];
   mcp_servers_editable?: boolean;
@@ -97,6 +99,7 @@ async function fetchSessionAgent(sessionId: string): Promise<Agent> {
     id: json.id,
     name: json.name,
     description: json.description,
+    instructions: json.instructions,
     harness: json.harness ?? null,
     mcp_servers: json.mcp_servers,
     mcp_servers_editable: json.mcp_servers_editable,

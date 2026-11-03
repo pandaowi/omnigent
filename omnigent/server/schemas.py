@@ -392,6 +392,7 @@ class AgentObject(BaseModel):
     name: str
     version: int = 1
     description: str | None = None
+    instructions: str | None = None
     created_at: int
     updated_at: int | None = None
     harness: str | None = None

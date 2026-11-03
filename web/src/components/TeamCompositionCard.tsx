@@ -51,12 +51,27 @@ export function parseTeamRoles(instructions?: string | null, description?: strin
     if (parsed.length > 0) return parsed;
   }
 
-  // 2. Built-in agent-team fallback or team description heuristic
+  // 2. Try parsing roles from parenthetical summary in description, e.g. "(Test Engineer, Feature Implementer)"
+  const parenMatch = description?.match(/\(([^)]+)\)/);
+  if (parenMatch) {
+    const names = parenMatch[1]
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s && !s.toLowerCase().includes("lead orchestrator"));
+    if (names.length > 0 && names.length <= 8) {
+      return names.map((name, i) => ({
+        id: `role_${i + 1}`,
+        roleName: name,
+        focus: `Specialized ${name} responsibilities`,
+        harness: "codex",
+      }));
+    }
+  }
+
+  // 3. Built-in agent-team fallback (only if description or text specifically mentions the full squad)
   if (
-    text.toLowerCase().includes("multi-role agent team") ||
-    text.toLowerCase().includes("lead orchestrator") ||
-    text.toLowerCase().includes("agent team") ||
-    (description && description.toLowerCase().includes("team"))
+    text.toLowerCase().includes("autonomous multi-role agent team") ||
+    text.toLowerCase().includes("architect, developer, reviewer")
   ) {
     return [
       {

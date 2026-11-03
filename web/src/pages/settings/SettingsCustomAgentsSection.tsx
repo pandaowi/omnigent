@@ -102,10 +102,14 @@ export function SettingsCustomAgentsSection() {
     };
   }, [serverAgents, userAgents, acpHarnesses, searchTerm]);
 
-  const isTeam = (a: ManagedAgent) =>
-    a.name === "agent-team" ||
-    a.name.toLowerCase().includes("team") ||
-    Boolean(a.description && a.description.toLowerCase().includes("team"));
+  const isTeam = (a: ManagedAgent) => {
+    if (a.name === "agent-team") return true;
+    if (a.name.toLowerCase().includes("team")) return true;
+    if (a.instructions && (a.instructions.includes("## Team Members & Responsibilities") || a.instructions.includes("### Role 1:"))) return true;
+    if (a.description?.toLowerCase().includes("multi-role agent team")) return true;
+    if (Boolean(parseTeamRoles(a.instructions, a.description))) return true;
+    return false;
+  };
 
   const teamAgents = useMemo(() => {
     return [...filtered, ...builtins].filter(isTeam);
@@ -274,7 +278,7 @@ export function SettingsCustomAgentsSection() {
         onOpenChange={setTeamDialogOpen}
         initialName={cloneAgent ? `my-${cloneAgent.name}` : ""}
         initialDescription={cloneAgent?.description ? `Custom team based on ${cloneAgent.name}` : ""}
-        initialRoles={cloneAgent ? (parseTeamRoles((cloneAgent as any).instructions, cloneAgent.description) ?? undefined) : undefined}
+        initialRoles={cloneAgent ? (parseTeamRoles(cloneAgent.instructions, cloneAgent.description) ?? undefined) : undefined}
         initialHarness={cloneAgent?.harness || "codex"}
         onCreate={async (input) => {
           const agent = await save.mutateAsync(input);
@@ -293,11 +297,7 @@ export function SettingsCustomAgentsSection() {
         <section aria-label="Agent Teams" className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {teamAgents.map((team) => {
-              const roles = parseTeamRoles((team as any).instructions, team.description) ?? [
-                { id: "1", roleName: "Architect", focus: "", harness: "codex" },
-                { id: "2", roleName: "Developer", focus: "", harness: "opencode" },
-                { id: "3", roleName: "Reviewer", focus: "", harness: "claude-native" },
-              ];
+              const roles = parseTeamRoles(team.instructions, team.description) ?? [];
               const isOwned = !team.builtin;
 
               return (
@@ -335,17 +335,19 @@ export function SettingsCustomAgentsSection() {
                     </p>
 
                     {/* Roles preview chips */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                      {roles.map((r, i) => (
-                        <div
-                          key={r.id || i}
-                          className="flex items-center gap-1 rounded bg-muted/80 px-2 py-0.5 text-[10px] font-medium text-foreground"
-                        >
-                          <span className="text-muted-foreground font-mono font-bold">#{i + 1}</span>
-                          <span>{r.roleName}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {roles.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        {roles.map((r, i) => (
+                          <div
+                            key={r.id || i}
+                            className="flex items-center gap-1 rounded bg-muted/80 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                          >
+                            <span className="text-muted-foreground font-mono font-bold">#{i + 1}</span>
+                            <span>{r.roleName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-border/60">
@@ -597,7 +599,7 @@ function AgentDetail({
   const [inUse, setInUse] = useState<string | null>(null);
 
   const configQuery = useCustomAgentConfig(agent.id);
-  const instructions = configQuery.data?.config?.instructions;
+  const instructions = configQuery.data?.config?.instructions ?? agent.instructions;
   const description = configQuery.data?.config?.description ?? agent.description;
   const currentModel = configQuery.data?.config?.model ?? (agent as any).model;
   const currentHarness = configQuery.data?.config?.harness ?? agent.harness ?? harness;

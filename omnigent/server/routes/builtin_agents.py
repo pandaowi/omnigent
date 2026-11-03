@@ -92,6 +92,7 @@ def _to_agent_object(agent: Agent, agent_cache: AgentCache) -> AgentObject:
     # YAML agents don't persist it at registration today). Lets the
     # new-session picker show a hover description without a migration.
     description: str | None = agent.description
+    instructions: str | None = None
     try:
         # Only operator-authored agents (built-ins, ``--agent``) expand
         # ${VAR} against the server env; user agents are tenant input.
@@ -100,6 +101,7 @@ def _to_agent_object(agent: Agent, agent_cache: AgentCache) -> AgentObject:
         )
         if description is None:
             description = loaded.spec.description
+        instructions = loaded.spec.instructions
         # Declared terminal names, in spec order (mirrors the
         # session-agent endpoint so both report it consistently).
         terminals = list(loaded.spec.terminals or {})
@@ -138,6 +140,7 @@ def _to_agent_object(agent: Agent, agent_cache: AgentCache) -> AgentObject:
         name=agent.name,
         version=agent.version,
         description=description,
+        instructions=instructions,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
         harness=harness,
