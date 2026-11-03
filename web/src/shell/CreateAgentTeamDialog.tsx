@@ -11,6 +11,7 @@ import {
   ServerIcon,
   BotIcon,
   LayersIcon,
+  VideoIcon,
 } from "lucide-react";
 import {
   Dialog,
@@ -332,6 +333,28 @@ const PRESET_TEAMS: {
         roleName: "Feature Implementer",
         focus: "Write minimal code required to pass all tests, then refactor cleanly.",
         harness: "opencode",
+      },
+    ],
+  },
+  {
+    title: "Video Studio (Remotion)",
+    icon: VideoIcon,
+    description: "Programmatic video creation squad: script & storyboard, React Remotion motion engineering, and studio preview QA.",
+    roles: [
+      {
+        roleName: "Director & Storyboarder",
+        focus: "Formulate creative direction, script narration, scene-by-scene breakdown, frame timings (@ 30fps), and visual asset requirements.",
+        harness: "codex",
+      },
+      {
+        roleName: "Remotion Motion Engineer",
+        focus: "Author React Remotion compositions, animations (spring, interpolate), sequences, audio sync, transitions, and captions via remotion-dev skills.",
+        harness: "codex",
+      },
+      {
+        roleName: "Studio Preview & Render QA",
+        focus: "Launch Remotion Studio preview, verify frame pacing and synchronization, audit video quality, and render production MP4.",
+        harness: "codex",
       },
     ],
   },
