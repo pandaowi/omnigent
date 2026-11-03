@@ -55,7 +55,8 @@ export function parseTeamRoles(instructions?: string | null, description?: strin
   if (
     text.toLowerCase().includes("multi-role agent team") ||
     text.toLowerCase().includes("lead orchestrator") ||
-    (description && description.toLowerCase().includes("autonomous multi-role agent team"))
+    text.toLowerCase().includes("agent team") ||
+    (description && description.toLowerCase().includes("team"))
   ) {
     return [
       {

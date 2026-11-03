@@ -10,6 +10,7 @@ import {
   CpuIcon,
   SparklesIcon,
   LayersIcon,
+  PencilIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "@/lib/routing";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
@@ -33,6 +34,7 @@ import { useSettingsRoute } from "@/shell/settingsNav";
 import {
   useCustomAgents,
   useCustomAgent,
+  useCustomAgentConfig,
   useSaveCustomAgent,
   useDeleteCustomAgent,
   type ManagedAgent,
@@ -594,11 +596,25 @@ function AgentDetail({
   const [editTeamOpen, setEditTeamOpen] = useState(false);
   const [inUse, setInUse] = useState<string | null>(null);
 
-  const teamRoles = useMemo(() => {
-    return parseTeamRoles((agent as any).instructions, agent.description);
-  }, [agent]);
+  const configQuery = useCustomAgentConfig(agent.id);
+  const instructions = configQuery.data?.config?.instructions;
+  const description = configQuery.data?.config?.description ?? agent.description;
+  const currentModel = configQuery.data?.config?.model ?? (agent as any).model;
+  const currentHarness = configQuery.data?.config?.harness ?? agent.harness ?? harness;
 
-  const isTeam = Boolean(teamRoles) || agent.name === "agent-team";
+  const teamRoles = useMemo(() => {
+    return parseTeamRoles(instructions, description);
+  }, [instructions, description]);
+
+  const isTeam = useMemo(() => {
+    if (Boolean(teamRoles)) return true;
+    if (agent.name === "agent-team") return true;
+    if (agent.name.toLowerCase().includes("team")) return true;
+    if (description && description.toLowerCase().includes("team")) return true;
+    if (instructions && instructions.includes("## Team Members & Responsibilities")) return true;
+    if (instructions && instructions.includes("### Role 1:")) return true;
+    return false;
+  }, [teamRoles, agent.name, description, instructions]);
 
   function confirmDelete() {
     remove.reset();
@@ -615,55 +631,57 @@ function AgentDetail({
       /* The mutation error is displayed in the dialog. */
     }
   }
+
+  // If this is a regular single agent and editable, render the single-agent config editor form
+  if (canEdit && !isTeam) {
+    return <CustomAgentConfigForm id={agent.id} name={agent.name} onDelete={confirmDelete} />;
+  }
+
+  // Otherwise (Agent Team or read-only agent), render the visual detail view
   return (
     <>
-      {canEdit && !isTeam ? (
-        <CustomAgentConfigForm id={agent.id} name={agent.name} onDelete={confirmDelete} />
-      ) : (
-        <>
-          <BackButton label="Agents & Teams" to={BASE} componentId="settings.custom_agents.back" />
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <h1 className="min-w-0 break-words text-2xl font-semibold">{agent.name}</h1>
-              {isTeam && (
-                <span className="text-xs bg-muted text-muted-foreground border border-border px-2 py-0.5 rounded font-medium shrink-0">
-                  Team
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {!canEdit && (
-                <Button
-                  size="sm"
-                  onClick={() => setCloneOpen(true)}
-                  className="gap-1.5 font-medium"
-                >
-                  <CopyIcon className="size-3.5" />
-                  Customize as My Team
-                </Button>
-              )}
-              {canEdit && isTeam && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setEditTeamOpen(true)}
-                  className="gap-1.5"
-                >
-                  Edit Team Roles
-                </Button>
-              )}
-              {owned === true && (
-                <Button variant="ghost" size="icon" aria-label="Delete agent" onClick={confirmDelete}>
-                  <TrashIcon className="size-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-          <p className="mt-3 text-ui text-muted-foreground">
-            {agent.description || "No description."}
-          </p>
-        </>
-      )}
+      <BackButton label="Agents & Teams" to={BASE} componentId="settings.custom_agents.back" />
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="min-w-0 break-words text-2xl font-semibold">{agent.name}</h1>
+          {isTeam && (
+            <span className="text-xs bg-muted text-muted-foreground border border-border px-2 py-0.5 rounded font-medium shrink-0">
+              Team
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {!canEdit && (
+            <Button
+              size="sm"
+              onClick={() => setCloneOpen(true)}
+              className="gap-1.5 font-medium"
+            >
+              <CopyIcon className="size-3.5" />
+              Customize as My Team
+            </Button>
+          )}
+          {canEdit && isTeam && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditTeamOpen(true)}
+              className="gap-1.5"
+            >
+              <PencilIcon className="size-3.5" />
+              Edit Team Roles
+            </Button>
+          )}
+          {owned === true && (
+            <Button variant="ghost" size="icon" aria-label="Delete agent" onClick={confirmDelete}>
+              <TrashIcon className="size-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+      <p className="mt-3 text-ui text-muted-foreground">
+        {description || (isTeam ? "Multi-role orchestrated agent team." : "No description.")}
+      </p>
 
       {/* Visual Team Composition Card */}
       {isTeam && teamRoles && (
@@ -680,9 +698,10 @@ function AgentDetail({
         open={cloneOpen}
         onOpenChange={setCloneOpen}
         initialName={`my-${agent.name}`}
-        initialDescription={agent.description || `Custom team based on ${agent.name}`}
+        initialDescription={description || `Custom team based on ${agent.name}`}
         initialRoles={teamRoles || undefined}
-        initialHarness={agent.harness || "codex"}
+        initialHarness={currentHarness || "codex"}
+        initialModel={currentModel || ""}
         onCreate={async (input) => {
           const newAgent = await save.mutateAsync(input);
           navigate(agentPath(newAgent.id));
@@ -693,69 +712,79 @@ function AgentDetail({
         open={editTeamOpen}
         onOpenChange={setEditTeamOpen}
         initialName={agent.name}
-        initialDescription={agent.description || ""}
+        initialDescription={description || ""}
         initialRoles={teamRoles || undefined}
-        initialHarness={agent.harness || "codex"}
+        initialHarness={currentHarness || "codex"}
+        initialModel={currentModel || ""}
         isEditMode
         onCreate={async (input) => {
-          const updated = await save.mutateAsync({ ...input, id: agent.id });
-          navigate(agentPath(updated.id));
+          await save.mutateAsync({ ...input, name: agent.name });
+          await configQuery.refetch();
+          setEditTeamOpen(false);
         }}
       />
 
-      <dl className="my-6 grid grid-cols-2 gap-4 text-ui">
-        {!canEdit && (
-          <div>
-            <dt className="text-muted-foreground">Harness</dt>
-            <dd>{harness}</dd>
-          </div>
-        )}
+      <dl className="my-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-ui rounded-xl border border-border bg-card/40 p-4">
         <div>
-          <dt className="text-muted-foreground">Version</dt>
-          <dd>{agent.version}</dd>
+          <dt className="text-xs text-muted-foreground">{isTeam ? "Lead Harness" : "Harness"}</dt>
+          <dd className="text-sm font-medium">{currentHarness}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Created</dt>
-          <dd>{date(agent.created_at)}</dd>
+          <dt className="text-xs text-muted-foreground">{isTeam ? "Orchestrator Model" : "Model"}</dt>
+          <dd className="text-sm font-medium">{currentModel || "Default"}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Last edited</dt>
-          <dd>{date(agent.updated_at)}</dd>
+          <dt className="text-xs text-muted-foreground">Version</dt>
+          <dd className="text-sm font-medium">{agent.version}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Created</dt>
+          <dd className="text-sm font-medium">{date(agent.created_at)}</dd>
         </div>
       </dl>
 
-      {!canEdit && !isTeam && (
-        <section className="mb-6">
-          <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            MCP servers
-          </h2>
-          {agent.mcp_servers?.length ? (
-            <ul className="space-y-2">
-              {agent.mcp_servers.map((server) => (
-                <li key={server.name} className="rounded-xl border border-border p-3">
-                  <p className="text-ui font-medium">{server.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {server.transport}
-                    {server.description ? ` · ${server.description}` : ""}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-ui text-muted-foreground">No MCP servers listed.</p>
-          )}
-        </section>
-      )}
+      {!isTeam && (
+        <>
+          <section className="mb-6">
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              MCP servers
+            </h2>
+            {agent.mcp_servers?.length ? (
+              <ul className="space-y-2">
+                {agent.mcp_servers.map((server) => (
+                  <li key={server.name} className="rounded-xl border border-border p-3">
+                    <p className="text-ui font-medium">{server.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {server.transport}
+                      {server.description ? ` · ${server.description}` : ""}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-ui text-muted-foreground">No MCP servers listed.</p>
+            )}
+          </section>
 
-      {!canEdit && !isTeam && (
-        <section className="mb-6">
-          <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Skills
-          </h2>
-          {agent.skills?.length ? (
-            <ul className="space-y-2">
-              {agent.skills.map((skill) => (
-                <li key={skill.name} className="rounded-xl border border-border p-3">
+          <section className="mb-6">
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Skills
+            </h2>
+            {agent.skills?.length ? (
+              <ul className="space-y-2">
+                {agent.skills.map((skill) => (
+                  <li key={skill.name} className="rounded-xl border border-border p-3">
+                    <p className="text-ui font-medium">{skill.name}</p>
+                    <p className="text-xs text-muted-foreground">{skill.description}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-ui text-muted-foreground">No skills listed.</p>
+            )}
+          </section>
+        </>
+      )}
                   <p className="text-ui font-medium">{skill.name}</p>
                   <p className="text-xs text-muted-foreground">{skill.description}</p>
                 </li>
