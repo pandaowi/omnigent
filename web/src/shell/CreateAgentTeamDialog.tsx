@@ -217,7 +217,7 @@ function HostModelPicker({
               title="Return to list of available models"
               className={compact ? "size-7 shrink-0 text-xs" : "size-8 shrink-0 text-xs"}
             >
-              <SparklesIcon className="size-3 text-emerald-500" />
+              <SparklesIcon className="size-3 text-muted-foreground" />
             </Button>
           )}
         </div>
@@ -248,8 +248,8 @@ function HostModelPicker({
                 <div className="flex items-center justify-between gap-2 w-full">
                   <span className="truncate">{m.displayName || m.id}</span>
                   {m.isDefault && (
-                    <span className="text-[10px] text-emerald-500 font-medium shrink-0">
-                      (Default)
+                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono shrink-0">
+                      Default
                     </span>
                   )}
                 </div>
@@ -548,42 +548,46 @@ ${roleDescriptions}
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-4 sm:max-w-3xl lg:max-w-4xl overflow-x-hidden">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[85vh] flex-col p-0 sm:max-w-3xl lg:max-w-4xl overflow-hidden gap-0 rounded-[24px]">
+        <DialogHeader className="p-6 pb-3 pr-14">
           <DialogTitle className="flex items-center gap-2">
-            <UsersIcon className="size-5 text-emerald-500" />
+            <UsersIcon className="size-5 text-primary" />
             <span>{isEditMode ? "Edit Agent Team" : "Create Agent Team (Multi-Role Orchestration)"}</span>
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
             Configure a coordinated team of AI agents. Each role can be assigned specific
             responsibilities, engines, live-probed models from hosts, and runner workspaces.
           </p>
+
+          {/* Quick Presets */}
+          <div className="flex flex-col gap-1.5 pt-2">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Quick Templates
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_TEAMS.map((preset) => {
+                const Icon = preset.icon;
+                return (
+                  <button
+                    key={preset.title}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className="flex items-center gap-1.5 rounded-lg border border-border bg-card/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground cursor-pointer"
+                  >
+                    <Icon className="size-3.5 text-muted-foreground" />
+                    <span>{preset.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </DialogHeader>
 
-        {/* Quick Presets */}
-        <div className="flex flex-col gap-1.5 px-1">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Quick Templates
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {PRESET_TEAMS.map((preset) => {
-              const Icon = preset.icon;
-              return (
-                <button
-                  key={preset.title}
-                  type="button"
-                  onClick={() => applyPreset(preset)}
-                  className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/5 cursor-pointer"
-                >
-                  <Icon className="size-3.5 text-emerald-500" />
-                  <span>{preset.title}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-1">
+        <form
+          id="create-agent-team-form"
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-6 py-2"
+        >
           {/* Team Name */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-muted-foreground">
@@ -616,10 +620,10 @@ ${roleDescriptions}
           </div>
 
           {/* Lead Orchestrator Configuration */}
-          <div className="rounded-xl border border-border/80 bg-muted/20 p-3 flex flex-col gap-2.5">
+          <div className="rounded-xl border border-border bg-muted/20 p-3.5 flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <UsersIcon className="size-3.5 text-emerald-500" />
+                <UsersIcon className="size-3.5 text-muted-foreground" />
                 Lead Orchestrator (Primary Chat Coordinator)
               </span>
             </div>
@@ -697,7 +701,7 @@ ${roleDescriptions}
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold flex items-center gap-1.5">
-                <LayersIcon className="size-4 text-emerald-500" />
+                <LayersIcon className="size-4 text-muted-foreground" />
                 Team Roles &amp; Specialists ({roles.length})
               </span>
               <Button
@@ -705,7 +709,7 @@ ${roleDescriptions}
                 variant="outline"
                 size="sm"
                 onClick={addRole}
-                className="h-7 text-xs gap-1"
+                className="h-7 text-xs gap-1.5"
               >
                 <PlusIcon className="size-3" />
                 Add Role
@@ -718,11 +722,11 @@ ${roleDescriptions}
                 return (
                   <div
                     key={role.id}
-                    className="rounded-lg border border-border bg-card/40 p-3 flex flex-col gap-2.5"
+                    className="rounded-xl border border-border bg-card/40 p-3.5 flex flex-col gap-2.5"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1">
-                        <span className="text-xs font-bold text-muted-foreground">
+                        <span className="text-xs font-mono font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
                           #{index + 1}
                         </span>
                         <Input
@@ -826,21 +830,26 @@ ${roleDescriptions}
               })}
             </div>
           </div>
-
-          <DialogFooter className="mt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={pending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSubmit || pending} loading={pending}>
-              {isEditMode ? "Save Changes" : "Create Team"}
-            </Button>
-          </DialogFooter>
         </form>
+
+        <DialogFooter className="p-6 pt-3 border-t border-border/40 bg-card/30">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={pending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="create-agent-team-form"
+            disabled={!canSubmit || pending}
+            loading={pending}
+          >
+            {isEditMode ? "Save Changes" : "Create Team"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

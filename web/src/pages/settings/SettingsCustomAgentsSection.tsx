@@ -215,7 +215,7 @@ export function SettingsCustomAgentsSection() {
             setCloneAgent(null);
             setTeamDialogOpen(true);
           }}
-          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+          className="gap-1.5 font-medium"
         >
           <UsersIcon className="size-4" />
           Create Team
@@ -231,11 +231,11 @@ export function SettingsCustomAgentsSection() {
             className={cn(
               "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
               viewTab === "teams"
-                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs"
+                ? "bg-muted text-foreground font-semibold shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <UsersIcon className="size-3.5 text-emerald-500" />
+            <UsersIcon className="size-3.5" />
             <span>Agent Teams ({teamAgents.length})</span>
           </button>
           <button
@@ -301,22 +301,22 @@ export function SettingsCustomAgentsSection() {
               return (
                 <div
                   key={team.id}
-                  className="flex flex-col justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-emerald-500/50 hover:shadow-xs gap-3.5"
+                  className="flex flex-col justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-border-strong hover:shadow-xs gap-3.5"
                 >
                   <div className="flex flex-col gap-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">
-                        <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
+                        <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
                           <UsersIcon className="size-4.5" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-sm">{team.name}</span>
-                            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border">
                               Team
                             </span>
                             {isOwned && (
-                              <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-500">
+                              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary border border-primary/20">
                                 Custom
                               </span>
                             )}
@@ -339,7 +339,7 @@ export function SettingsCustomAgentsSection() {
                           key={r.id || i}
                           className="flex items-center gap-1 rounded bg-muted/80 px-2 py-0.5 text-[10px] font-medium text-foreground"
                         >
-                          <span className="text-emerald-500 font-bold">#{i + 1}</span>
+                          <span className="text-muted-foreground font-mono font-bold">#{i + 1}</span>
                           <span>{r.roleName}</span>
                         </div>
                       ))}
@@ -349,7 +349,7 @@ export function SettingsCustomAgentsSection() {
                   <div className="flex items-center justify-between pt-3 border-t border-border/60">
                     <Link
                       to={agentPath(team.id)}
-                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                      className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
                     >
                       View Team Details &rarr;
                     </Link>
@@ -362,7 +362,7 @@ export function SettingsCustomAgentsSection() {
                           setCloneAgent(team);
                           setTeamDialogOpen(true);
                         }}
-                        className="h-7 text-xs gap-1 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        className="h-7 text-xs gap-1"
                       >
                         <CopyIcon className="size-3" />
                         Customize as My Team
@@ -387,7 +387,7 @@ export function SettingsCustomAgentsSection() {
                   setCloneAgent(null);
                   setTeamDialogOpen(true);
                 }}
-                className="mt-4 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="mt-4 gap-1.5 font-medium"
               >
                 <PlusIcon className="size-3.5" />
                 Create Your First Team
@@ -414,13 +414,13 @@ export function SettingsCustomAgentsSection() {
                 >
                   <span className="flex items-center gap-3 font-medium">
                     {isTeam(agent) ? (
-                      <UsersIcon className="size-5 shrink-0 text-emerald-500" aria-hidden />
+                      <UsersIcon className="size-5 shrink-0" aria-hidden />
                     ) : (
                       <BotIcon className="size-5 shrink-0" aria-hidden />
                     )}
                     <span className="truncate">{agent.name}</span>
                     {isTeam(agent) && (
-                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-500 border border-emerald-500/30">
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border">
                         Team
                       </span>
                     )}
@@ -477,7 +477,7 @@ export function SettingsCustomAgentsSection() {
                           >
                             <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground">
                               {isTeam(agent) ? (
-                                <UsersIcon className="size-[15px] text-emerald-500" aria-hidden />
+                                <UsersIcon className="size-[15px]" aria-hidden />
                               ) : (
                                 <BotIcon className="size-[15px]" aria-hidden />
                               )}
@@ -486,7 +486,7 @@ export function SettingsCustomAgentsSection() {
                               <span className="flex items-center gap-2 font-medium">
                                 <span className="truncate">{agent.name}</span>
                                 {isTeam(agent) && (
-                                  <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded font-semibold">
+                                  <span className="text-[10px] bg-muted text-muted-foreground border border-border px-1.5 py-0.5 rounded font-medium">
                                     Team
                                   </span>
                                 )}
@@ -626,7 +626,7 @@ function AgentDetail({
             <div className="flex items-center gap-3 min-w-0">
               <h1 className="min-w-0 break-words text-2xl font-semibold">{agent.name}</h1>
               {isTeam && (
-                <span className="text-xs bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-semibold shrink-0">
+                <span className="text-xs bg-muted text-muted-foreground border border-border px-2 py-0.5 rounded font-medium shrink-0">
                   Team
                 </span>
               )}
@@ -636,7 +636,7 @@ function AgentDetail({
                 <Button
                   size="sm"
                   onClick={() => setCloneOpen(true)}
-                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                  className="gap-1.5 font-medium"
                 >
                   <CopyIcon className="size-3.5" />
                   Customize as My Team
@@ -647,7 +647,7 @@ function AgentDetail({
                   size="sm"
                   variant="outline"
                   onClick={() => setEditTeamOpen(true)}
-                  className="gap-1.5 border-emerald-500/40 hover:bg-emerald-500/10"
+                  className="gap-1.5"
                 >
                   Edit Team Roles
                 </Button>

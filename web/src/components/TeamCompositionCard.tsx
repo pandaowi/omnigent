@@ -115,17 +115,17 @@ export function TeamCompositionCard({
   onEditRoles?: () => void;
 }) {
   return (
-    <div className="my-6 flex flex-col gap-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 shadow-xs">
+    <div className="my-6 flex flex-col gap-5 rounded-2xl border border-border bg-card/60 p-5 shadow-xs">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2.5">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-500">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-muted text-foreground">
             <UsersIcon className="size-5" />
           </div>
           <div>
             <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
               Multi-Role Agent Team Pipeline
-              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-500">
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground border border-border">
                 {roles.length} Specialists
               </span>
             </h3>
@@ -140,7 +140,7 @@ export function TeamCompositionCard({
             <Button
               size="sm"
               onClick={onCustomize}
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              className="gap-1.5 font-medium"
             >
               <CopyIcon className="size-3.5" />
               Customize as My Team
@@ -151,9 +151,9 @@ export function TeamCompositionCard({
               size="sm"
               variant="outline"
               onClick={onEditRoles}
-              className="gap-1.5 border-emerald-500/40 hover:bg-emerald-500/10"
+              className="gap-1.5"
             >
-              <PencilIcon className="size-3.5 text-emerald-500" />
+              <PencilIcon className="size-3.5" />
               Edit Team Roles
             </Button>
           )}
@@ -167,7 +167,7 @@ export function TeamCompositionCard({
           return (
             <div key={r.id || i} className="flex items-center gap-2 shrink-0">
               <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 font-medium shadow-xs">
-                <Icon className="size-3.5 text-emerald-500" />
+                <Icon className="size-3.5 text-muted-foreground" />
                 <span>{r.roleName}</span>
               </div>
               {i < roles.length - 1 && (
@@ -185,7 +185,7 @@ export function TeamCompositionCard({
           return (
             <div
               key={role.id || idx}
-              className="flex flex-col justify-between gap-3 rounded-xl border border-border bg-card/90 p-3.5 transition-colors hover:border-emerald-500/40"
+              className="flex flex-col justify-between gap-3 rounded-xl border border-border bg-card/90 p-3.5 transition-colors hover:border-border-strong"
             >
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
