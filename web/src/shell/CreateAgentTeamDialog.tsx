@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { BRAIN_HARNESS_LABELS, useBrainHarnessLabels } from "@/lib/agentLabels";
 import type { AgentBundleInput } from "@/lib/agentBundle";
 import { useHosts, useHostModelOptions } from "@/hooks/useHosts";
 
@@ -42,69 +43,26 @@ export interface TeamMemberRole {
   model?: string;
 }
 
-export const HARNESS_DEFAULT_MODELS: Record<
-  string,
-  { id: string; label: string; isDefault?: boolean }[]
-> = {
-  codex: [
-    { id: "gpt-4o", label: "GPT-4o (Omni - Recommended)", isDefault: true },
-    { id: "gpt-4o-mini", label: "GPT-4o Mini (Fast & Lightweight)" },
-    { id: "o1", label: "OpenAI o1 (Deep Reasoning)" },
-    { id: "o3-mini", label: "OpenAI o3-mini (Math & Coding)" },
-    { id: "chatgpt-4o-latest", label: "ChatGPT-4o (Latest Snapshot)" },
-  ],
-  "claude-native": [
-    { id: "claude-3-7-sonnet-20250219", label: "Claude 3.7 Sonnet (Hybrid Reasoning)", isDefault: true },
-    { id: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet v2" },
-    { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku (Fast)" },
-    { id: "claude-3-opus-20240229", label: "Claude 3 Opus (Complex Analysis)" },
-  ],
-  claude: [
-    { id: "claude-3-7-sonnet-20250219", label: "Claude 3.7 Sonnet (Hybrid Reasoning)", isDefault: true },
-    { id: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet v2" },
-    { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku (Fast)" },
-    { id: "claude-3-opus-20240229", label: "Claude 3 Opus" },
-  ],
-  opencode: [
-    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", isDefault: true },
-    { id: "gpt-4o", label: "GPT-4o" },
-    { id: "deepseek-chat", label: "DeepSeek V3" },
-    { id: "deepseek-reasoner", label: "DeepSeek R1 (Reasoning)" },
-    { id: "qwen2.5-coder-32b", label: "Qwen 2.5 Coder 32B" },
-  ],
-  "antigravity-native": [
-    { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro (Deep Reasoning)", isDefault: true },
-    { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Ultra Fast)" },
-    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
-    { id: "gpt-4o", label: "GPT-4o" },
-  ],
-  antigravity: [
-    { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro (Deep Reasoning)", isDefault: true },
-    { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Ultra Fast)" },
-    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
-    { id: "gpt-4o", label: "GPT-4o" },
-  ],
-  cursor: [
-    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", isDefault: true },
-    { id: "gpt-4o", label: "GPT-4o" },
-    { id: "cursor-small", label: "Cursor Small" },
-  ],
-};
+const AGENT_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-function RoleModelSelect({
+/**
+ * Reusable dynamic Model Picker driven directly by live host model options probing.
+ * Exactly matches the behavior and UX in CreateAgentDialog.
+ */
+function HostModelPicker({
   label = "Model",
   harness,
   hostId,
-  value,
-  onChange,
-  heightClass = "h-7",
+  model,
+  setModel,
+  compact = false,
 }: {
   label?: string;
   harness: string;
-  hostId?: string;
-  value?: string;
-  onChange: (val: string) => void;
-  heightClass?: string;
+  hostId?: string | null;
+  model: string;
+  setModel: (val: string) => void;
+  compact?: boolean;
 }) {
   const { data: hostModels, isLoading } = useHostModelOptions(
     hostId || null,
@@ -112,94 +70,65 @@ function RoleModelSelect({
     Boolean(hostId),
   );
 
-  const fallbackModels = HARNESS_DEFAULT_MODELS[harness] || HARNESS_DEFAULT_MODELS["codex"];
-
-  const options = useMemo(() => {
-    if (hostModels && hostModels.length > 0) {
-      return hostModels.map((m) => ({
-        id: m.id || m.model || "",
-        label: m.displayName || m.model || m.id,
-        isDefault: m.isDefault,
-      }));
-    }
-    return fallbackModels;
-  }, [hostModels, fallbackModels]);
-
-  const [isCustom, setIsCustom] = useState(false);
-
-  // Auto-select default model if empty or doesn't match
+  // Auto-sync default model from host when models load or harness changes
   useEffect(() => {
-    if (!value && options.length > 0) {
-      const def = options.find((o) => o.isDefault) ?? options[0];
-      if (def) onChange(def.id);
+    if (hostModels && hostModels.length > 0) {
+      const exists = hostModels.some((m) => m.id === model || m.model === model);
+      if (!model || !exists) {
+        const def = hostModels.find((m) => m.isDefault) ?? hostModels[0];
+        if (def) {
+          setModel(def.id || def.model || "");
+        }
+      }
     }
-  }, [value, options, onChange]);
-
-  const matched = options.find((o) => o.id === value);
+  }, [hostModels, harness]);
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <label className="text-[11px] text-muted-foreground">{label}</label>
+        <label className={compact ? "text-[11px] text-muted-foreground" : "text-xs text-muted-foreground"}>
+          {label} <span className="text-destructive">*</span>
+        </label>
         {isLoading && (
-          <span className="text-[10px] text-muted-foreground animate-pulse">Detecting…</span>
+          <span className="text-[10px] text-muted-foreground animate-pulse">
+            Detecting models on host…
+          </span>
         )}
       </div>
 
-      {!isCustom ? (
+      {hostModels && hostModels.length > 0 && (
         <Select
-          value={matched ? value : (options[0]?.id || "")}
-          onValueChange={(val) => {
-            if (val === "__custom__") {
-              setIsCustom(true);
-            } else {
-              onChange(val);
-            }
-          }}
+          value={model}
+          onValueChange={(val) => setModel(val)}
         >
-          <SelectTrigger className={`${heightClass} text-xs font-mono`}>
-            <SelectValue placeholder="Select model..." />
+          <SelectTrigger className={compact ? "h-7 text-xs font-mono" : "h-8 text-xs font-mono"}>
+            <SelectValue placeholder="Pick from detected models on host..." />
           </SelectTrigger>
           <SelectContent>
-            {options.map((opt) => (
-              <SelectItem key={opt.id} value={opt.id} className="text-xs">
+            {hostModels.map((m) => (
+              <SelectItem key={m.id} value={m.id} className="text-xs">
                 <div className="flex items-center justify-between gap-2 w-full">
-                  <span>{opt.label}</span>
-                  {opt.isDefault && (
+                  <span>{m.displayName || m.model || m.id}</span>
+                  {m.isDefault && (
                     <span className="text-[10px] text-emerald-500 font-medium">(Default)</span>
                   )}
                 </div>
               </SelectItem>
             ))}
-            <SelectItem value="__custom__" className="text-xs text-muted-foreground italic">
-              + Custom / Other model…
-            </SelectItem>
           </SelectContent>
         </Select>
-      ) : (
-        <div className="flex items-center gap-1">
-          <Input
-            value={value || ""}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="e.g. claude-3-7-sonnet"
-            className={`${heightClass} text-xs font-mono flex-1`}
-            autoFocus
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => {
-              setIsCustom(false);
-              const def = options.find((o) => o.isDefault) ?? options[0];
-              if (def) onChange(def.id);
-            }}
-            className={`${heightClass} text-[10px] px-1.5 text-muted-foreground`}
-          >
-            Presets
-          </Button>
-        </div>
       )}
+
+      <Input
+        value={model}
+        onChange={(e) => setModel(e.target.value)}
+        placeholder={
+          hostModels && hostModels.length > 0
+            ? "Or type a custom model identifier..."
+            : "e.g. gpt-4o, claude-3-5-sonnet, gemini-2.5-pro"
+        }
+        className={compact ? "h-7 text-xs font-mono" : "h-8 text-xs font-mono"}
+      />
     </div>
   );
 }
@@ -208,7 +137,7 @@ const PRESET_TEAMS: {
   title: string;
   icon: typeof SparklesIcon;
   description: string;
-  roles: TeamMemberRole[];
+  roles: Omit<TeamMemberRole, "id">[];
 }[] = [
   {
     title: "Full-Stack Squad",
@@ -216,25 +145,19 @@ const PRESET_TEAMS: {
     description: "Standard end-to-end engineering squad with architecture, implementation, and review.",
     roles: [
       {
-        id: "role_1",
         roleName: "Architect & Planner",
         focus: "Analyze requirements, design modular architecture, author specifications, and break down tasks.",
         harness: "codex",
-        model: "gpt-4o",
       },
       {
-        id: "role_2",
         roleName: "Core Developer",
         focus: "Write clean production code, implement features, integrate endpoints, and run local test suites.",
         harness: "opencode",
-        model: "claude-3-5-sonnet",
       },
       {
-        id: "role_3",
         roleName: "Code Reviewer & QA",
         focus: "Audit code diffs, verify security best practices, review test coverage, and inspect edge cases.",
         harness: "claude-native",
-        model: "claude-3-7-sonnet-20250219",
       },
     ],
   },
@@ -244,25 +167,19 @@ const PRESET_TEAMS: {
     description: "Specialized in auditing vulnerabilities, code hygiene, and defensive refactoring.",
     roles: [
       {
-        id: "role_1",
         roleName: "Security Auditor",
         focus: "Scan codebase for CVEs, permission bypasses, input validation flaws, and unsafe data flows.",
         harness: "codex",
-        model: "gpt-4o",
       },
       {
-        id: "role_2",
         roleName: "Refactoring Engineer",
         focus: "Apply structural improvements, decouple tight dependencies, and preserve existing unit tests.",
         harness: "opencode",
-        model: "claude-3-5-sonnet",
       },
       {
-        id: "role_3",
         roleName: "Regression Tester",
         focus: "Run test matrices, verify backwards compatibility, and benchmark performance metrics.",
         harness: "antigravity-native",
-        model: "gemini-2.5-pro",
       },
     ],
   },
@@ -272,26 +189,18 @@ const PRESET_TEAMS: {
     description: "Test-driven development workflow: test specifications first, then robust implementation.",
     roles: [
       {
-        id: "role_1",
         roleName: "Test Engineer",
         focus: "Draft failing test cases (unit, integration, e2e) according to functional requirements.",
         harness: "codex",
-        model: "gpt-4o",
       },
       {
-        id: "role_2",
         roleName: "Feature Implementer",
         focus: "Write minimal code required to pass all tests, then refactor cleanly.",
         harness: "opencode",
-        model: "claude-3-5-sonnet",
       },
     ],
   },
 ];
-
-const DEFAULT_ROLES: TeamMemberRole[] = PRESET_TEAMS[0].roles;
-
-const AGENT_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export function CreateAgentTeamDialog({
   open,
@@ -301,7 +210,7 @@ export function CreateAgentTeamDialog({
   initialDescription = "",
   initialRoles,
   initialHarness = "codex",
-  initialModel = "gpt-4o",
+  initialModel = "",
   initialHostId = "",
   isEditMode = false,
 }: {
@@ -324,28 +233,96 @@ export function CreateAgentTeamDialog({
   const [orchestratorHostId, setOrchestratorHostId] = useState(initialHostId);
   const [orchestratorHarness, setOrchestratorHarness] = useState(initialHarness);
   const [orchestratorModel, setOrchestratorModel] = useState(initialModel);
-  const [roles, setRoles] = useState<TeamMemberRole[]>(
-    initialRoles && initialRoles.length > 0 ? initialRoles : DEFAULT_ROLES,
-  );
+  const [roles, setRoles] = useState<TeamMemberRole[]>([]);
   const [pending, setPending] = useState(false);
+
+  // Auto-bind to first online host if not set (matches CreateAgentDialog)
+  useEffect(() => {
+    if (hosts.length > 0 && !orchestratorHostId) {
+      const firstOnline = hosts.find((h) => h.status === "online");
+      if (firstOnline) {
+        setOrchestratorHostId(firstOnline.host_id);
+      }
+    }
+  }, [hosts, orchestratorHostId]);
 
   // Sync initial props when dialog opens or props change
   useEffect(() => {
     if (open) {
       if (initialName) setTeamName(initialName);
       if (initialDescription) setDescription(initialDescription);
-      if (initialRoles && initialRoles.length > 0) setRoles(initialRoles);
       if (initialHarness) setOrchestratorHarness(initialHarness);
       if (initialModel) setOrchestratorModel(initialModel);
       if (initialHostId) setOrchestratorHostId(initialHostId);
+
+      if (initialRoles && initialRoles.length > 0) {
+        setRoles(initialRoles);
+      } else if (roles.length === 0) {
+        // Initialize default roles without hardcoded models; models will auto-resolve via HostModelPicker
+        setRoles(
+          PRESET_TEAMS[0].roles.map((r, i) => ({
+            ...r,
+            id: `role_${i + 1}`,
+            model: "",
+          })),
+        );
+      }
     }
   }, [open, initialName, initialDescription, initialRoles, initialHarness, initialModel, initialHostId]);
+
+  const brainHarnessLabels = useBrainHarnessLabels(true);
+  const selectedHost = useMemo(
+    () => hosts.find((h) => h.host_id === orchestratorHostId),
+    [hosts, orchestratorHostId],
+  );
+
+  // Build dynamic harness options with host readiness badges (matches CreateAgentDialog)
+  const harnessOptions = useMemo(() => {
+    const list: { value: string; label: string; badge?: string }[] = [
+      { value: "codex", label: "Codex (Runner Native CLI)" },
+      { value: "opencode", label: "OpenCode (Runner Native CLI)" },
+      { value: "antigravity-native", label: "Antigravity CLI (Runner Native)" },
+      { value: "claude-native", label: "Claude Code CLI (Runner Native)" },
+      { value: "claude-sdk", label: "Claude SDK (Cloud API Key)" },
+      { value: "openai-agents", label: "OpenAI Agents (Cloud API Key)" },
+      { value: "cursor", label: "Cursor" },
+      { value: "pi", label: "Pi" },
+      { value: "copilot", label: "Copilot" },
+    ];
+
+    for (const [val, lbl] of Object.entries(brainHarnessLabels)) {
+      if (!list.some((item) => item.value === val)) {
+        list.push({ value: val, label: lbl });
+      }
+    }
+
+    if (!selectedHost?.configured_harnesses) return list;
+
+    return list.map((opt) => {
+      const cfg = selectedHost.configured_harnesses;
+      const isReady =
+        cfg?.[opt.value] === true ||
+        cfg?.[`${opt.value}-native`] === true ||
+        (opt.value === "antigravity-native" &&
+          (cfg?.["antigravity"] === true || cfg?.["antigravity-native"] === true));
+      return {
+        ...opt,
+        badge: isReady ? "Ready on host" : opt.badge,
+      };
+    });
+  }, [brainHarnessLabels, selectedHost]);
 
   const nameInvalid = teamName.trim().length > 0 && !AGENT_NAME_PATTERN.test(teamName.trim());
   const canSubmit = AGENT_NAME_PATTERN.test(teamName.trim()) && roles.length > 0;
 
   function applyPreset(preset: (typeof PRESET_TEAMS)[number]) {
-    setRoles(preset.roles);
+    setRoles(
+      preset.roles.map((r, i) => ({
+        ...r,
+        id: `role_${Date.now()}_${i}`,
+        model: "",
+      })),
+    );
     if (!description || description.startsWith("Multi-role Agent Team")) {
       setDescription(preset.description);
     }
@@ -353,16 +330,14 @@ export function CreateAgentTeamDialog({
 
   function addRole() {
     const newId = `role_${Date.now()}`;
-    const defHarness = "opencode";
-    const defModel = HARNESS_DEFAULT_MODELS[defHarness]?.[0]?.id || "claude-3-5-sonnet";
     setRoles((prev) => [
       ...prev,
       {
         id: newId,
         roleName: `Specialist ${prev.length + 1}`,
         focus: "Specialized tasks for this team member",
-        harness: defHarness,
-        model: defModel,
+        harness: "opencode",
+        model: "",
       },
     ]);
   }
@@ -424,7 +399,7 @@ ${roleDescriptions}
           description.trim() ||
           `Multi-role Agent Team (${roles.map((r) => r.roleName).join(", ")})`,
         harness: orchestratorHarness,
-        model: orchestratorModel.trim() || "gpt-4o",
+        model: orchestratorModel.trim() || undefined,
         hostId: orchestratorHostId || undefined,
         instructions,
       };
@@ -445,8 +420,8 @@ ${roleDescriptions}
             <span>{isEditMode ? "Edit Agent Team" : "Create Agent Team (Multi-Role Orchestration)"}</span>
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Configure a coordinated team of AI agents (like Paseo Agent Team). Each role can be
-            assigned specific responsibilities, engines, models, and runner hosts.
+            Configure a coordinated team of AI agents. Each role can be assigned specific
+            responsibilities, engines, live-probed models from hosts, and runner workspaces.
           </p>
         </DialogHeader>
 
@@ -516,47 +491,47 @@ ${roleDescriptions}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Orchestrator Harness</label>
+                <label className="text-xs text-muted-foreground">
+                  Harness <span className="text-destructive">*</span>
+                </label>
                 <Select
                   value={orchestratorHarness}
                   onValueChange={(val) => {
                     setOrchestratorHarness(val);
-                    const def = HARNESS_DEFAULT_MODELS[val]?.[0]?.id || "gpt-4o";
-                    setOrchestratorModel(def);
+                    setOrchestratorModel("");
                   }}
                 >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="codex">Codex (Runner Native)</SelectItem>
-                    <SelectItem value="opencode">OpenCode (Runner Native)</SelectItem>
-                    <SelectItem value="antigravity-native">Antigravity CLI</SelectItem>
-                    <SelectItem value="claude-native">Claude Code CLI</SelectItem>
+                    {harnessOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <span>{opt.label}</span>
+                          {opt.badge && (
+                            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {opt.badge}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <RoleModelSelect
-                label="Orchestrator Model"
-                harness={orchestratorHarness}
-                hostId={orchestratorHostId}
-                value={orchestratorModel}
-                onChange={setOrchestratorModel}
-                heightClass="h-8"
-              />
-
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Execution Host / Runner</label>
+                <label className="text-xs text-muted-foreground">Runner Host</label>
                 <Select
                   value={orchestratorHostId || "__default__"}
                   onValueChange={(val) => setOrchestratorHostId(val === "__default__" ? "" : val)}
                 >
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Default (auto-assign)" />
+                    <SelectValue placeholder="Select runtime host" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__default__">Auto (Default Workspace)</SelectItem>
+                    <SelectItem value="__default__">Any / Cloud (Standard)</SelectItem>
                     {hosts.map((h) => (
                       <SelectItem key={h.host_id} value={h.host_id}>
                         {h.name} {h.status === "online" ? "● Online" : "○ Offline"}
@@ -565,6 +540,14 @@ ${roleDescriptions}
                   </SelectContent>
                 </Select>
               </div>
+
+              <HostModelPicker
+                label="Orchestrator Model"
+                harness={orchestratorHarness}
+                hostId={orchestratorHostId}
+                model={orchestratorModel}
+                setModel={setOrchestratorModel}
+              />
             </div>
           </div>
 
@@ -588,98 +571,110 @@ ${roleDescriptions}
             </div>
 
             <div className="flex flex-col gap-2.5">
-              {roles.map((role, index) => (
-                <div
-                  key={role.id}
-                  className="rounded-lg border border-border bg-card/40 p-3 flex flex-col gap-2.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="text-xs font-bold text-muted-foreground">
-                        #{index + 1}
-                      </span>
-                      <Input
-                        value={role.roleName}
-                        onChange={(e) => updateRole(role.id, { roleName: e.target.value })}
-                        placeholder="Role Title (e.g. Backend Developer)"
-                        className="h-7 text-xs font-medium max-w-[200px]"
-                      />
-                    </div>
-                    {roles.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => removeRole(role.id)}
-                        className="size-6 text-muted-foreground hover:text-destructive"
-                      >
-                        <TrashIcon className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
-
-                  <Textarea
-                    value={role.focus}
-                    onChange={(e) => updateRole(role.id, { focus: e.target.value })}
-                    placeholder="Describe this role's purpose, scope, and domain knowledge..."
-                    className="min-h-[50px] text-xs resize-none"
-                  />
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[11px] text-muted-foreground">Engine / Harness</label>
-                      <Select
-                        value={role.harness}
-                        onValueChange={(val) => {
-                          const def = HARNESS_DEFAULT_MODELS[val]?.[0]?.id || "gpt-4o";
-                          updateRole(role.id, { harness: val, model: def });
-                        }}
-                      >
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="codex">Codex (Runner Native)</SelectItem>
-                          <SelectItem value="opencode">OpenCode (Runner Native)</SelectItem>
-                          <SelectItem value="antigravity-native">Antigravity CLI</SelectItem>
-                          <SelectItem value="claude-native">Claude Code CLI</SelectItem>
-                        </SelectContent>
-                      </Select>
+              {roles.map((role, index) => {
+                const roleHost = role.hostId || orchestratorHostId;
+                return (
+                  <div
+                    key={role.id}
+                    className="rounded-lg border border-border bg-card/40 p-3 flex flex-col gap-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-xs font-bold text-muted-foreground">
+                          #{index + 1}
+                        </span>
+                        <Input
+                          value={role.roleName}
+                          onChange={(e) => updateRole(role.id, { roleName: e.target.value })}
+                          placeholder="Role Title (e.g. Backend Developer)"
+                          className="h-7 text-xs font-medium max-w-[200px]"
+                        />
+                      </div>
+                      {roles.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => removeRole(role.id)}
+                          className="size-6 text-muted-foreground hover:text-destructive"
+                        >
+                          <TrashIcon className="size-3.5" />
+                        </Button>
+                      )}
                     </div>
 
-                    <RoleModelSelect
-                      label="Model"
-                      harness={role.harness}
-                      hostId={role.hostId || orchestratorHostId}
-                      value={role.model}
-                      onChange={(newModel) => updateRole(role.id, { model: newModel })}
-                      heightClass="h-7"
+                    <Textarea
+                      value={role.focus}
+                      onChange={(e) => updateRole(role.id, { focus: e.target.value })}
+                      placeholder="Describe this role's purpose, scope, and domain knowledge..."
+                      className="min-h-[50px] text-xs resize-none"
                     />
 
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[11px] text-muted-foreground">Host / Runtime</label>
-                      <Select
-                        value={role.hostId || "__default__"}
-                        onValueChange={(val) =>
-                          updateRole(role.id, { hostId: val === "__default__" ? undefined : val })
-                        }
-                      >
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue placeholder="Inherit orchestrator host" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__default__">Inherit Host</SelectItem>
-                          {hosts.map((h) => (
-                            <SelectItem key={h.host_id} value={h.host_id}>
-                              {h.name} {h.status === "online" ? "● Online" : "○ Offline"}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <label className="text-[11px] text-muted-foreground">
+                          Harness <span className="text-destructive">*</span>
+                        </label>
+                        <Select
+                          value={role.harness}
+                          onValueChange={(val) => {
+                            updateRole(role.id, { harness: val, model: "" });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {harnessOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                <div className="flex items-center justify-between gap-2 w-full">
+                                  <span>{opt.label}</span>
+                                  {opt.badge && (
+                                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                      {opt.badge}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <label className="text-[11px] text-muted-foreground">Runner Host</label>
+                        <Select
+                          value={role.hostId || "__default__"}
+                          onValueChange={(val) =>
+                            updateRole(role.id, { hostId: val === "__default__" ? undefined : val })
+                          }
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue placeholder="Inherit orchestrator host" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__default__">Inherit Host</SelectItem>
+                            {hosts.map((h) => (
+                              <SelectItem key={h.host_id} value={h.host_id}>
+                                {h.name} {h.status === "online" ? "● Online" : "○ Offline"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <HostModelPicker
+                        label="Model"
+                        harness={role.harness}
+                        hostId={roleHost}
+                        model={role.model || ""}
+                        setModel={(newModel) => updateRole(role.id, { model: newModel })}
+                        compact
+                      />
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
