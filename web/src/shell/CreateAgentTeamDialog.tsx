@@ -42,6 +42,168 @@ export interface TeamMemberRole {
   model?: string;
 }
 
+export const HARNESS_DEFAULT_MODELS: Record<
+  string,
+  { id: string; label: string; isDefault?: boolean }[]
+> = {
+  codex: [
+    { id: "gpt-4o", label: "GPT-4o (Omni - Recommended)", isDefault: true },
+    { id: "gpt-4o-mini", label: "GPT-4o Mini (Fast & Lightweight)" },
+    { id: "o1", label: "OpenAI o1 (Deep Reasoning)" },
+    { id: "o3-mini", label: "OpenAI o3-mini (Math & Coding)" },
+    { id: "chatgpt-4o-latest", label: "ChatGPT-4o (Latest Snapshot)" },
+  ],
+  "claude-native": [
+    { id: "claude-3-7-sonnet-20250219", label: "Claude 3.7 Sonnet (Hybrid Reasoning)", isDefault: true },
+    { id: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet v2" },
+    { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku (Fast)" },
+    { id: "claude-3-opus-20240229", label: "Claude 3 Opus (Complex Analysis)" },
+  ],
+  claude: [
+    { id: "claude-3-7-sonnet-20250219", label: "Claude 3.7 Sonnet (Hybrid Reasoning)", isDefault: true },
+    { id: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet v2" },
+    { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku (Fast)" },
+    { id: "claude-3-opus-20240229", label: "Claude 3 Opus" },
+  ],
+  opencode: [
+    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", isDefault: true },
+    { id: "gpt-4o", label: "GPT-4o" },
+    { id: "deepseek-chat", label: "DeepSeek V3" },
+    { id: "deepseek-reasoner", label: "DeepSeek R1 (Reasoning)" },
+    { id: "qwen2.5-coder-32b", label: "Qwen 2.5 Coder 32B" },
+  ],
+  "antigravity-native": [
+    { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro (Deep Reasoning)", isDefault: true },
+    { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Ultra Fast)" },
+    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
+    { id: "gpt-4o", label: "GPT-4o" },
+  ],
+  antigravity: [
+    { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro (Deep Reasoning)", isDefault: true },
+    { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Ultra Fast)" },
+    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
+    { id: "gpt-4o", label: "GPT-4o" },
+  ],
+  cursor: [
+    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", isDefault: true },
+    { id: "gpt-4o", label: "GPT-4o" },
+    { id: "cursor-small", label: "Cursor Small" },
+  ],
+};
+
+function RoleModelSelect({
+  label = "Model",
+  harness,
+  hostId,
+  value,
+  onChange,
+  heightClass = "h-7",
+}: {
+  label?: string;
+  harness: string;
+  hostId?: string;
+  value?: string;
+  onChange: (val: string) => void;
+  heightClass?: string;
+}) {
+  const { data: hostModels, isLoading } = useHostModelOptions(
+    hostId || null,
+    harness,
+    Boolean(hostId),
+  );
+
+  const fallbackModels = HARNESS_DEFAULT_MODELS[harness] || HARNESS_DEFAULT_MODELS["codex"];
+
+  const options = useMemo(() => {
+    if (hostModels && hostModels.length > 0) {
+      return hostModels.map((m) => ({
+        id: m.id || m.model || "",
+        label: m.displayName || m.model || m.id,
+        isDefault: m.isDefault,
+      }));
+    }
+    return fallbackModels;
+  }, [hostModels, fallbackModels]);
+
+  const [isCustom, setIsCustom] = useState(false);
+
+  // Auto-select default model if empty or doesn't match
+  useEffect(() => {
+    if (!value && options.length > 0) {
+      const def = options.find((o) => o.isDefault) ?? options[0];
+      if (def) onChange(def.id);
+    }
+  }, [value, options, onChange]);
+
+  const matched = options.find((o) => o.id === value);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <label className="text-[11px] text-muted-foreground">{label}</label>
+        {isLoading && (
+          <span className="text-[10px] text-muted-foreground animate-pulse">Detecting…</span>
+        )}
+      </div>
+
+      {!isCustom ? (
+        <Select
+          value={matched ? value : (options[0]?.id || "")}
+          onValueChange={(val) => {
+            if (val === "__custom__") {
+              setIsCustom(true);
+            } else {
+              onChange(val);
+            }
+          }}
+        >
+          <SelectTrigger className={`${heightClass} text-xs font-mono`}>
+            <SelectValue placeholder="Select model..." />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((opt) => (
+              <SelectItem key={opt.id} value={opt.id} className="text-xs">
+                <div className="flex items-center justify-between gap-2 w-full">
+                  <span>{opt.label}</span>
+                  {opt.isDefault && (
+                    <span className="text-[10px] text-emerald-500 font-medium">(Default)</span>
+                  )}
+                </div>
+              </SelectItem>
+            ))}
+            <SelectItem value="__custom__" className="text-xs text-muted-foreground italic">
+              + Custom / Other model…
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      ) : (
+        <div className="flex items-center gap-1">
+          <Input
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="e.g. claude-3-7-sonnet"
+            className={`${heightClass} text-xs font-mono flex-1`}
+            autoFocus
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              setIsCustom(false);
+              const def = options.find((o) => o.isDefault) ?? options[0];
+              if (def) onChange(def.id);
+            }}
+            className={`${heightClass} text-[10px] px-1.5 text-muted-foreground`}
+          >
+            Presets
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const PRESET_TEAMS: {
   title: string;
   icon: typeof SparklesIcon;
@@ -72,7 +234,7 @@ const PRESET_TEAMS: {
         roleName: "Code Reviewer & QA",
         focus: "Audit code diffs, verify security best practices, review test coverage, and inspect edge cases.",
         harness: "claude-native",
-        model: "claude-3-5-sonnet",
+        model: "claude-3-7-sonnet-20250219",
       },
     ],
   },
@@ -162,7 +324,9 @@ export function CreateAgentTeamDialog({
   const [orchestratorHostId, setOrchestratorHostId] = useState(initialHostId);
   const [orchestratorHarness, setOrchestratorHarness] = useState(initialHarness);
   const [orchestratorModel, setOrchestratorModel] = useState(initialModel);
-  const [roles, setRoles] = useState<TeamMemberRole[]>(initialRoles && initialRoles.length > 0 ? initialRoles : DEFAULT_ROLES);
+  const [roles, setRoles] = useState<TeamMemberRole[]>(
+    initialRoles && initialRoles.length > 0 ? initialRoles : DEFAULT_ROLES,
+  );
   const [pending, setPending] = useState(false);
 
   // Sync initial props when dialog opens or props change
@@ -189,14 +353,16 @@ export function CreateAgentTeamDialog({
 
   function addRole() {
     const newId = `role_${Date.now()}`;
+    const defHarness = "opencode";
+    const defModel = HARNESS_DEFAULT_MODELS[defHarness]?.[0]?.id || "claude-3-5-sonnet";
     setRoles((prev) => [
       ...prev,
       {
         id: newId,
         roleName: `Specialist ${prev.length + 1}`,
         focus: "Specialized tasks for this team member",
-        harness: "codex",
-        model: "gpt-4o",
+        harness: defHarness,
+        model: defModel,
       },
     ]);
   }
@@ -353,7 +519,11 @@ ${roleDescriptions}
                 <label className="text-xs text-muted-foreground">Orchestrator Harness</label>
                 <Select
                   value={orchestratorHarness}
-                  onValueChange={(val) => setOrchestratorHarness(val)}
+                  onValueChange={(val) => {
+                    setOrchestratorHarness(val);
+                    const def = HARNESS_DEFAULT_MODELS[val]?.[0]?.id || "gpt-4o";
+                    setOrchestratorModel(def);
+                  }}
                 >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
@@ -367,15 +537,14 @@ ${roleDescriptions}
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Orchestrator Model</label>
-                <Input
-                  value={orchestratorModel}
-                  onChange={(e) => setOrchestratorModel(e.target.value)}
-                  placeholder="e.g. gpt-4o, claude-3-5-sonnet"
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
+              <RoleModelSelect
+                label="Orchestrator Model"
+                harness={orchestratorHarness}
+                hostId={orchestratorHostId}
+                value={orchestratorModel}
+                onChange={setOrchestratorModel}
+                heightClass="h-8"
+              />
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-muted-foreground">Execution Host / Runner</label>
@@ -461,7 +630,10 @@ ${roleDescriptions}
                       <label className="text-[11px] text-muted-foreground">Engine / Harness</label>
                       <Select
                         value={role.harness}
-                        onValueChange={(val) => updateRole(role.id, { harness: val })}
+                        onValueChange={(val) => {
+                          const def = HARNESS_DEFAULT_MODELS[val]?.[0]?.id || "gpt-4o";
+                          updateRole(role.id, { harness: val, model: def });
+                        }}
                       >
                         <SelectTrigger className="h-7 text-xs">
                           <SelectValue />
@@ -475,15 +647,14 @@ ${roleDescriptions}
                       </Select>
                     </div>
 
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[11px] text-muted-foreground">Model</label>
-                      <Input
-                        value={role.model || ""}
-                        onChange={(e) => updateRole(role.id, { model: e.target.value })}
-                        placeholder="e.g. gpt-4o, claude-3-5"
-                        className="h-7 text-xs font-mono"
-                      />
-                    </div>
+                    <RoleModelSelect
+                      label="Model"
+                      harness={role.harness}
+                      hostId={role.hostId || orchestratorHostId}
+                      value={role.model}
+                      onChange={(newModel) => updateRole(role.id, { model: newModel })}
+                      heightClass="h-7"
+                    />
 
                     <div className="flex flex-col gap-0.5">
                       <label className="text-[11px] text-muted-foreground">Host / Runtime</label>
