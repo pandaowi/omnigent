@@ -112,21 +112,35 @@ function toMCPInputs(entries: MCPFormEntry[]): MCPServerInput[] | undefined {
   return result.length > 0 ? result : undefined;
 }
 
+export interface AgentFormInitialValues {
+  name?: string;
+  description?: string;
+  instructions?: string;
+  harness?: string;
+  model?: string;
+  hostId?: string;
+}
+
 /** Collect a draft for a new session, or import an installed agent bundle. */
 export function CreateAgentDialog({
   open,
   onOpenChange,
   onCreate,
   onImport,
+  initialValues,
+  isEditMode = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (input: AgentBundleInput) => void;
+  onCreate: (input: AgentBundleInput) => void | Promise<void>;
   /** Install a picked bundle; rejects with a user-facing message on failure. */
   onImport?: (bundle: File) => Promise<void>;
+  initialValues?: AgentFormInitialValues;
+  isEditMode?: boolean;
 }) {
-  const fields = useAgentFormFields();
+  const fields = useAgentFormFields(initialValues, isEditMode);
   const [importing, setImporting] = useState(false);
+  const [pending, setPending] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -137,16 +151,21 @@ export function CreateAgentDialog({
 
   function handleOpenChange(next: boolean) {
     // Stay open while an import is in flight so its result lands somewhere.
-    if (!next && importing) return;
-    if (!next) reset();
+    if (!next && (importing || pending)) return;
+    if (!next && !isEditMode) reset();
     onOpenChange(next);
   }
 
-  function handleSubmit() {
-    if (!AGENT_NAME_PATTERN.test(fields.name.trim())) return;
-    onCreate(fields.toInput());
-    reset();
-    onOpenChange(false);
+  async function handleSubmit() {
+    if (!AGENT_NAME_PATTERN.test(fields.name.trim()) || pending) return;
+    setPending(true);
+    try {
+      await onCreate(fields.toInput());
+      if (!isEditMode) reset();
+      onOpenChange(false);
+    } finally {
+      setPending(false);
+    }
   }
 
   async function handleImport(bundle: File | undefined) {
@@ -173,7 +192,7 @@ export function CreateAgentDialog({
         className="flex max-h-[85vh] flex-col gap-4 sm:max-w-lg"
       >
         <DialogHeader>
-          <DialogTitle>Create custom agent</DialogTitle>
+          <DialogTitle>{isEditMode ? `Edit Agent: ${fields.name}` : "Create custom agent"}</DialogTitle>
         </DialogHeader>
 
         {/* px-1/-mx-1 give the fields' 3px focus ring room to paint:
@@ -193,7 +212,7 @@ export function CreateAgentDialog({
         )}
 
         <DialogFooter>
-          {onImport && (
+          {!isEditMode && onImport && (
             <>
               <input
                 ref={fileInputRef}
@@ -206,7 +225,7 @@ export function CreateAgentDialog({
               <Button
                 variant="outline"
                 className="sm:mr-auto"
-                disabled={importing}
+                disabled={importing || pending}
                 data-testid="create-agent-import"
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -215,15 +234,16 @@ export function CreateAgentDialog({
               </Button>
             </>
           )}
-          <Button variant="ghost" disabled={importing} onClick={() => handleOpenChange(false)}>
+          <Button variant="ghost" disabled={importing || pending} onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
           <Button
             data-testid="create-agent-submit"
             onClick={handleSubmit}
-            disabled={!fields.canSubmit || importing}
+            loading={pending}
+            disabled={!fields.canSubmit || importing || pending}
           >
-            Create
+            {isEditMode ? "Save Changes" : "Create"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -291,18 +311,37 @@ export function CreateAgentForm({
   );
 }
 
-function useAgentFormFields() {
+function useAgentFormFields(initialValues?: AgentFormInitialValues, isEditMode = false) {
   const { data: hosts = [] } = useHosts();
   const brainHarnessLabels = useBrainHarnessLabels();
 
-  const [hostId, setHostId] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [harness, setHarness] = useState(DEFAULT_HARNESS);
-  const [model, setModel] = useState("");
+  const [hostId, setHostId] = useState(initialValues?.hostId ?? "");
+  const [name, setName] = useState(initialValues?.name ?? "");
+  const [description, setDescription] = useState(initialValues?.description ?? "");
+  const [instructions, setInstructions] = useState(initialValues?.instructions ?? "");
+  const [harness, setHarness] = useState(initialValues?.harness ?? DEFAULT_HARNESS);
+  const [model, setModel] = useState(initialValues?.model ?? "");
   const [mcpEntries, setMcpEntries] = useState<MCPFormEntry[]>([]);
   const [nextKey, setNextKey] = useState(0);
+
+  // Sync initial values when they change
+  useEffect(() => {
+    if (initialValues) {
+      if (initialValues.name !== undefined) setName(initialValues.name);
+      if (initialValues.description !== undefined) setDescription(initialValues.description);
+      if (initialValues.instructions !== undefined) setInstructions(initialValues.instructions);
+      if (initialValues.harness !== undefined) setHarness(initialValues.harness);
+      if (initialValues.model !== undefined) setModel(initialValues.model);
+      if (initialValues.hostId !== undefined) setHostId(initialValues.hostId);
+    }
+  }, [
+    initialValues?.name,
+    initialValues?.description,
+    initialValues?.instructions,
+    initialValues?.harness,
+    initialValues?.model,
+    initialValues?.hostId,
+  ]);
 
   // Auto-select first online host when hosts become available if not explicitly chosen
   useEffect(() => {
@@ -362,9 +401,11 @@ function useAgentFormFields() {
     if (hostModels && hostModels.length > 0) {
       const exists = hostModels.some((m) => m.id === model || m.model === model);
       if (!model || !exists) {
-        const def = hostModels.find((m) => m.isDefault) ?? hostModels[0];
-        if (def) {
-          setModel(def.id || def.model || "");
+        if (!initialValues?.model) {
+          const def = hostModels.find((m) => m.isDefault) ?? hostModels[0];
+          if (def) {
+            setModel(def.id || def.model || "");
+          }
         }
       }
     }
@@ -435,6 +476,7 @@ function useAgentFormFields() {
     canSubmit,
     reset,
     toInput,
+    isEditMode,
   };
 }
 
@@ -460,6 +502,7 @@ function AgentFormFields({
   removeMCPServer,
   updateMCPEntry,
   nameInvalid,
+  isEditMode,
 }: ReturnType<typeof useAgentFormFields>) {
   return (
     <>
@@ -476,9 +519,14 @@ function AgentFormFields({
           placeholder="my-agent"
           aria-invalid={nameInvalid || undefined}
           aria-describedby={nameInvalid ? "create-agent-name-error" : undefined}
-          autoFocus
+          readOnly={isEditMode}
+          className={isEditMode ? "opacity-80 bg-muted cursor-not-allowed" : undefined}
+          autoFocus={!isEditMode}
         />
-        {nameInvalid && (
+        {isEditMode && (
+          <p className="text-xs text-muted-foreground">The agent name cannot be changed.</p>
+        )}
+        {nameInvalid && !isEditMode && (
           <p
             id="create-agent-name-error"
             data-testid="create-agent-name-error"

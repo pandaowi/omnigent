@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CreateAgentForm } from "@/shell/CreateAgentDialog";
+import { CreateAgentDialog, CreateAgentForm } from "@/shell/CreateAgentDialog";
 import { CreateAgentTeamDialog, type TeamMemberRole } from "@/shell/CreateAgentTeamDialog";
 import { TeamCompositionCard, parseTeamRoles } from "@/components/TeamCompositionCard";
 import { useSettingsRoute } from "@/shell/settingsNav";
@@ -595,7 +595,9 @@ function AgentDetail({
   const remove = useDeleteCustomAgent();
   const [confirm, setConfirm] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
+  const [cloneAgentOpen, setCloneAgentOpen] = useState(false);
   const [editTeamOpen, setEditTeamOpen] = useState(false);
+  const [editAgentOpen, setEditAgentOpen] = useState(false);
   const [inUse, setInUse] = useState<string | null>(null);
 
   const configQuery = useCustomAgentConfig(agent.id);
@@ -634,44 +636,37 @@ function AgentDetail({
     }
   }
 
-  // If this is a regular single agent and editable, render the single-agent config editor form
-  if (canEdit && !isTeam) {
-    return <CustomAgentConfigForm id={agent.id} name={agent.name} onDelete={confirmDelete} />;
-  }
-
-  // Otherwise (Agent Team or read-only agent), render the visual detail view
+  // Unified visual detail view for Single Agents and Teams
   return (
     <>
       <BackButton label="Agents & Teams" to={BASE} componentId="settings.custom_agents.back" />
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <h1 className="min-w-0 break-words text-2xl font-semibold">{agent.name}</h1>
-          {isTeam && (
-            <span className="text-xs bg-muted text-muted-foreground border border-border px-2 py-0.5 rounded font-medium shrink-0">
-              Team
-            </span>
-          )}
+          <span className="text-xs bg-muted text-muted-foreground border border-border px-2 py-0.5 rounded font-medium shrink-0">
+            {isTeam ? "Team" : "Single Agent"}
+          </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {!canEdit && (
             <Button
               size="sm"
-              onClick={() => setCloneOpen(true)}
+              onClick={() => (isTeam ? setCloneOpen(true) : setCloneAgentOpen(true))}
               className="gap-1.5 font-medium"
             >
               <CopyIcon className="size-3.5" />
-              Customize as My Team
+              {isTeam ? "Customize as My Team" : "Customize Agent"}
             </Button>
           )}
-          {canEdit && isTeam && (
+          {canEdit && (
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setEditTeamOpen(true)}
+              onClick={() => (isTeam ? setEditTeamOpen(true) : setEditAgentOpen(true))}
               className="gap-1.5"
             >
               <PencilIcon className="size-3.5" />
-              Edit Team Roles
+              {isTeam ? "Edit Team Roles" : "Edit Agent"}
             </Button>
           )}
           {owned === true && (
@@ -694,6 +689,18 @@ function AgentDetail({
           onCustomize={() => setCloneOpen(true)}
           onEditRoles={canEdit ? () => setEditTeamOpen(true) : undefined}
         />
+      )}
+
+      {/* System Instructions for Single Agent */}
+      {!isTeam && instructions && (
+        <section className="mt-5 rounded-xl border border-border bg-card/40 p-4">
+          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            System Instructions
+          </h2>
+          <div className="rounded-lg bg-background/60 p-3 border border-border/50 text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto text-foreground/90">
+            {instructions}
+          </div>
+        </section>
       )}
 
       <CreateAgentTeamDialog
@@ -723,6 +730,42 @@ function AgentDetail({
           await save.mutateAsync({ ...input, name: agent.name });
           await configQuery.refetch();
           setEditTeamOpen(false);
+        }}
+      />
+
+      <CreateAgentDialog
+        open={editAgentOpen}
+        onOpenChange={setEditAgentOpen}
+        isEditMode
+        initialValues={{
+          name: agent.name,
+          description: description || "",
+          instructions: instructions || "",
+          harness: currentHarness,
+          model: currentModel || "",
+          hostId: (configQuery.data?.config as any)?.host_id,
+        }}
+        onCreate={async (input) => {
+          await save.mutateAsync({ ...input, name: agent.name });
+          await configQuery.refetch();
+          setEditAgentOpen(false);
+        }}
+      />
+
+      <CreateAgentDialog
+        open={cloneAgentOpen}
+        onOpenChange={setCloneAgentOpen}
+        initialValues={{
+          name: `my-${agent.name}`,
+          description: description || `Custom agent based on ${agent.name}`,
+          instructions: instructions || "",
+          harness: currentHarness,
+          model: currentModel || "",
+          hostId: (configQuery.data?.config as any)?.host_id,
+        }}
+        onCreate={async (input) => {
+          const newAgent = await save.mutateAsync(input);
+          navigate(agentPath(newAgent.id));
         }}
       />
 
