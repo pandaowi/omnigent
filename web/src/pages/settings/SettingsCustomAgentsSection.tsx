@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { BotIcon, CopyIcon, PlusIcon, SearchIcon, TrashIcon, UsersIcon } from "lucide-react";
+import {
+  BotIcon,
+  CopyIcon,
+  PlusIcon,
+  SearchIcon,
+  TrashIcon,
+  UsersIcon,
+  CpuIcon,
+  SparklesIcon,
+  LayersIcon,
+} from "lucide-react";
 import { Link, useNavigate } from "@/lib/routing";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { customAgentsSettingsEnabled } from "@/lib/capabilities";
@@ -17,7 +27,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CreateAgentForm } from "@/shell/CreateAgentDialog";
-import { CreateAgentTeamDialog } from "@/shell/CreateAgentTeamDialog";
+import { CreateAgentTeamDialog, type TeamMemberRole } from "@/shell/CreateAgentTeamDialog";
+import { TeamCompositionCard, parseTeamRoles } from "@/components/TeamCompositionCard";
 import { useSettingsRoute } from "@/shell/settingsNav";
 import {
   useCustomAgents,
@@ -29,6 +40,7 @@ import {
 import { CustomAgentConfigForm } from "./CustomAgentConfigForm";
 import { BackButton } from "./HarnessCatalog";
 import { ApiError } from "@/lib/sessionsApi";
+import { cn } from "@/lib/utils";
 
 const BASE = "/settings/custom-agents";
 const agentPath = (id: string) => `${BASE}/${encodeURIComponent(id)}`;
@@ -53,7 +65,10 @@ export function SettingsCustomAgentsSection() {
   const labels = useHarnessLabels(supported);
   const acpHarnesses = useAcpHarnessIds(supported);
   const [search, setSearch] = useState("");
+  const [viewTab, setViewTab] = useState<"teams" | "all" | "single">("teams");
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
+  const [cloneAgent, setCloneAgent] = useState<ManagedAgent | null>(null);
+
   const serverAgents = useMemo(
     () => servers.data?.pages.flatMap((page) => page.data) ?? [],
     [servers.data],
@@ -85,10 +100,23 @@ export function SettingsCustomAgentsSection() {
     };
   }, [serverAgents, userAgents, acpHarnesses, searchTerm]);
 
+  const isTeam = (a: ManagedAgent) =>
+    a.name === "agent-team" ||
+    a.name.toLowerCase().includes("team") ||
+    Boolean(a.description && a.description.toLowerCase().includes("team"));
+
+  const teamAgents = useMemo(() => {
+    return [...filtered, ...builtins].filter(isTeam);
+  }, [filtered, builtins]);
+
+  const singleAgents = useMemo(() => {
+    return [...filtered, ...builtins].filter((a) => !isTeam(a));
+  }, [filtered, builtins]);
+
   if (!enabled) return null;
   if (!supported) return <UnsupportedServer />;
   const back = (
-    <BackButton label="Custom agents" to={BASE} componentId="settings.custom_agents.back" />
+    <BackButton label="Agents & Teams" to={BASE} componentId="settings.custom_agents.back" />
   );
   if (agentId === "new") {
     return (
@@ -158,11 +186,12 @@ export function SettingsCustomAgentsSection() {
         <div>
           <h1 className="text-2xl font-semibold">Agents &amp; Teams</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage custom single agents and multi-role orchestrated agent teams.
+            Manage single AI agents and multi-role orchestrated agent teams.
           </p>
         </div>
       </div>
-      <div className="mb-6 flex items-center gap-2">
+
+      <div className="mb-4 flex items-center gap-2">
         <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border px-2.5">
           <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <input
@@ -182,149 +211,325 @@ export function SettingsCustomAgentsSection() {
         </Button>
         <Button
           size="sm"
-          onClick={() => setTeamDialogOpen(true)}
-          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+          onClick={() => {
+            setCloneAgent(null);
+            setTeamDialogOpen(true);
+          }}
+          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
         >
           <UsersIcon className="size-4" />
           Create Team
         </Button>
       </div>
 
+      {/* Segmented View Switcher */}
+      <div className="mb-6 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-card/60 p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewTab("teams")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+              viewTab === "teams"
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <UsersIcon className="size-3.5 text-emerald-500" />
+            <span>Agent Teams ({teamAgents.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("all")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+              viewTab === "all"
+                ? "bg-muted text-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <BotIcon className="size-3.5" />
+            <span>All Agents ({filtered.length + builtins.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("single")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+              viewTab === "single"
+                ? "bg-muted text-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <CpuIcon className="size-3.5" />
+            <span>Single Agents ({singleAgents.length})</span>
+          </button>
+        </div>
+      </div>
+
       <CreateAgentTeamDialog
         open={teamDialogOpen}
         onOpenChange={setTeamDialogOpen}
+        initialName={cloneAgent ? `my-${cloneAgent.name}` : ""}
+        initialDescription={cloneAgent?.description ? `Custom team based on ${cloneAgent.name}` : ""}
+        initialRoles={cloneAgent ? (parseTeamRoles((cloneAgent as any).instructions, cloneAgent.description) ?? undefined) : undefined}
+        initialHarness={cloneAgent?.harness || "codex"}
         onCreate={async (input) => {
           const agent = await save.mutateAsync(input);
           navigate(agentPath(agent.id));
         }}
       />
+
       {(yours.hasNextPage || servers.hasNextPage) && (
         <p className="mb-4 text-xs text-muted-foreground">
           Search filters loaded agents. Load more to include older agents.
         </p>
       )}
-      <section className="mb-8" aria-label="Built-in agents">
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Built-in &amp; server agents
-        </h2>
-        <div className="grid gap-3 @lg:grid-cols-2">
-          {builtins.map((agent) => (
-            <Link
-              key={agent.id}
-              to={agentPath(agent.id)}
-              componentId="settings.custom_agents.review_server"
-              className="flex flex-col gap-3 rounded-xl border border-border p-4 hover:bg-muted/40"
-            >
-              <span className="flex items-center gap-3 font-medium">
-                <BotIcon className="size-5 shrink-0" aria-hidden />
-                {agent.name}
-              </span>
-              <span className="text-ui text-muted-foreground">
-                {agent.description || "Server-provided agent"}
-              </span>
-            </Link>
-          ))}
-        </div>
-        <ListStatus
-          query={servers}
-          scope="server"
-          empty={builtins.length === 0}
-          emptyText={search ? "No matching server agents." : "No server agents."}
-        />
-      </section>
-      <section aria-label="Your agents">
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Yours
-        </h2>
-        {filtered.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[36rem] text-left text-ui">
-              <thead>
-                <tr className="border-b border-border">
-                  <th scope="col" className="h-10 px-2 font-medium">
-                    Name
-                  </th>
-                  <th scope="col" className="h-10 w-[130px] px-2 font-medium">
-                    Agent SDK
-                  </th>
-                  <th scope="col" className="h-10 w-[120px] whitespace-nowrap px-2 font-medium">
-                    Created
-                  </th>
-                  <th scope="col" className="h-10 w-[120px] whitespace-nowrap px-2 font-medium">
-                    Last edited
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((agent) => (
-                  <tr
-                    key={agent.id}
-                    className="relative border-b border-border transition-colors last:border-0 hover:bg-muted/40 focus-within:bg-muted/40"
-                  >
-                    <td className="max-w-0 p-2">
-                      <Link
-                        to={agentPath(agent.id)}
-                        componentId="settings.custom_agents.review"
-                        className="flex items-center gap-2.5 rounded-sm outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={agent.name}
-                      >
-                        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground">
-                          {agent.description?.toLowerCase().includes("team") ? (
-                            <UsersIcon className="size-[15px] text-emerald-500" aria-hidden />
-                          ) : (
-                            <BotIcon className="size-[15px]" aria-hidden />
-                          )}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="flex items-center gap-2 font-medium">
-                            <span className="truncate">{agent.name}</span>
-                            {agent.description?.toLowerCase().includes("team") && (
-                              <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded font-semibold">
-                                Team
+
+      {/* 1. AGENT TEAMS VIEW */}
+      {viewTab === "teams" && (
+        <section aria-label="Agent Teams" className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {teamAgents.map((team) => {
+              const roles = parseTeamRoles((team as any).instructions, team.description) ?? [
+                { id: "1", roleName: "Architect", focus: "", harness: "codex" },
+                { id: "2", roleName: "Developer", focus: "", harness: "opencode" },
+                { id: "3", roleName: "Reviewer", focus: "", harness: "claude-native" },
+              ];
+              const isOwned = !team.builtin;
+
+              return (
+                <div
+                  key={team.id}
+                  className="flex flex-col justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-emerald-500/50 hover:shadow-xs gap-3.5"
+                >
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
+                          <UsersIcon className="size-4.5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm">{team.name}</span>
+                            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                              Team
+                            </span>
+                            {isOwned && (
+                              <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-500">
+                                Custom
                               </span>
                             )}
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">
+                            Harness: {team.harness || "codex"}
                           </span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {agent.description}
-                          </span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="whitespace-nowrap p-2">
-                      {labels[agent.harness ?? ""] ?? agent.harness ?? "Unknown"}
-                    </td>
-                    <td className="whitespace-nowrap p-2">{date(agent.created_at)}</td>
-                    <td className="whitespace-nowrap p-2">{date(agent.updated_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {team.description || "Multi-role orchestrated agent team."}
+                    </p>
+
+                    {/* Roles preview chips */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {roles.map((r, i) => (
+                        <div
+                          key={r.id || i}
+                          className="flex items-center gap-1 rounded bg-muted/80 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                        >
+                          <span className="text-emerald-500 font-bold">#{i + 1}</span>
+                          <span>{r.roleName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-border/60">
+                    <Link
+                      to={agentPath(team.id)}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                    >
+                      View Team Details &rarr;
+                    </Link>
+
+                    {!isOwned && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => {
+                          setCloneAgent(team);
+                          setTeamDialogOpen(true);
+                        }}
+                        className="h-7 text-xs gap-1 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      >
+                        <CopyIcon className="size-3" />
+                        Customize as My Team
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )}
-        <ListStatus
-          query={yours}
-          scope="user"
-          empty={filtered.length === 0}
-          emptyText={
-            search
-              ? "No matching agents in the loaded results."
-              : "No custom agents yet. Create an agent to keep it available for new sessions."
-          }
-        />
-      </section>
+
+          {teamAgents.length === 0 && (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-12 text-center">
+              <UsersIcon className="size-8 text-muted-foreground/50 mb-2" />
+              <p className="text-sm font-medium">No agent teams found</p>
+              <p className="text-xs text-muted-foreground max-w-sm mt-1">
+                Create an autonomous multi-role squad to divide complex work into planning, coding, and review.
+              </p>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setCloneAgent(null);
+                  setTeamDialogOpen(true);
+                }}
+                className="mt-4 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <PlusIcon className="size-3.5" />
+                Create Your First Team
+              </Button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 2. ALL / SINGLE AGENTS VIEW */}
+      {viewTab !== "teams" && (
+        <>
+          <section className="mb-8" aria-label="Built-in agents">
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Built-in &amp; server agents
+            </h2>
+            <div className="grid gap-3 @lg:grid-cols-2">
+              {(viewTab === "single" ? builtins.filter((a) => !isTeam(a)) : builtins).map((agent) => (
+                <Link
+                  key={agent.id}
+                  to={agentPath(agent.id)}
+                  componentId="settings.custom_agents.review_server"
+                  className="flex flex-col gap-3 rounded-xl border border-border p-4 hover:bg-muted/40 transition-colors"
+                >
+                  <span className="flex items-center gap-3 font-medium">
+                    {isTeam(agent) ? (
+                      <UsersIcon className="size-5 shrink-0 text-emerald-500" aria-hidden />
+                    ) : (
+                      <BotIcon className="size-5 shrink-0" aria-hidden />
+                    )}
+                    <span className="truncate">{agent.name}</span>
+                    {isTeam(agent) && (
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-500 border border-emerald-500/30">
+                        Team
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-ui text-muted-foreground line-clamp-2">
+                    {agent.description || "Server-provided agent"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+            <ListStatus
+              query={servers}
+              scope="server"
+              empty={builtins.length === 0}
+              emptyText={search ? "No matching server agents." : "No server agents."}
+            />
+          </section>
+
+          <section aria-label="Your agents">
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Yours
+            </h2>
+            {(viewTab === "single" ? filtered.filter((a) => !isTeam(a)) : filtered).length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[36rem] text-left text-ui">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th scope="col" className="h-10 px-2 font-medium">
+                        Name
+                      </th>
+                      <th scope="col" className="h-10 w-[130px] px-2 font-medium">
+                        Agent SDK
+                      </th>
+                      <th scope="col" className="h-10 w-[120px] whitespace-nowrap px-2 font-medium">
+                        Created
+                      </th>
+                      <th scope="col" className="h-10 w-[120px] whitespace-nowrap px-2 font-medium">
+                        Last edited
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(viewTab === "single" ? filtered.filter((a) => !isTeam(a)) : filtered).map((agent) => (
+                      <tr
+                        key={agent.id}
+                        className="relative border-b border-border transition-colors last:border-0 hover:bg-muted/40 focus-within:bg-muted/40"
+                      >
+                        <td className="max-w-0 p-2">
+                          <Link
+                            to={agentPath(agent.id)}
+                            componentId="settings.custom_agents.review"
+                            className="flex items-center gap-2.5 rounded-sm outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={agent.name}
+                          >
+                            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                              {isTeam(agent) ? (
+                                <UsersIcon className="size-[15px] text-emerald-500" aria-hidden />
+                              ) : (
+                                <BotIcon className="size-[15px]" aria-hidden />
+                              )}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="flex items-center gap-2 font-medium">
+                                <span className="truncate">{agent.name}</span>
+                                {isTeam(agent) && (
+                                  <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded font-semibold">
+                                    Team
+                                  </span>
+                                )}
+                              </span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {agent.description}
+                              </span>
+                            </span>
+                          </Link>
+                        </td>
+                        <td className="whitespace-nowrap p-2">
+                          {labels[agent.harness ?? ""] ?? agent.harness ?? "Unknown"}
+                        </td>
+                        <td className="whitespace-nowrap p-2">{date(agent.created_at)}</td>
+                        <td className="whitespace-nowrap p-2">{date(agent.updated_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <ListStatus
+              query={yours}
+              scope="user"
+              empty={filtered.length === 0}
+              emptyText={
+                search
+                  ? "No matching agents in the loaded results."
+                  : "No custom agents yet. Create an agent to keep it available for new sessions."
+              }
+            />
+          </section>
+        </>
+      )}
     </div>
   );
 }
 
 function UnsupportedServer() {
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-semibold">Custom agents</h1>
-      <p role="alert" className="text-ui text-muted-foreground">
-        Custom agents settings is unavailable on this server. Update the server and reload to enable
-        it.
-      </p>
-    </div>
+    <p role="alert" className="text-ui text-muted-foreground">
+      This Omnigent server does not support custom agents.
+    </p>
   );
 }
 
@@ -335,27 +540,24 @@ function ListStatus({
   emptyText,
 }: {
   query: ReturnType<typeof useCustomAgents>;
-  scope: "user" | "server";
+  scope: "server" | "user";
   empty: boolean;
   emptyText: string;
 }) {
-  const client = useQueryClient();
-  if (query.isPending) return <p className="py-4 text-ui text-muted-foreground">Loading agents…</p>;
-  if (query.isError)
-    return (
-      <p role="alert" className="py-4 text-ui">
-        Could not load agents.{" "}
-        <Button
-          variant="link"
-          onClick={() => void client.resetQueries({ queryKey: ["settings-agents", scope] })}
-        >
-          Retry
-        </Button>
-      </p>
-    );
   return (
     <>
-      {empty && <p className="py-4 text-ui text-muted-foreground">{emptyText}</p>}
+      {query.isPending ? (
+        <p className="text-ui text-muted-foreground">Loading…</p>
+      ) : query.isError ? (
+        <p role="alert" className="text-ui">
+          Could not load {scope === "user" ? "your agents" : "server agents"}.{" "}
+          <Button variant="link" onClick={() => void query.refetch()}>
+            Retry
+          </Button>
+        </p>
+      ) : empty ? (
+        <p className="text-ui text-muted-foreground">{emptyText}</p>
+      ) : null}
       {query.hasNextPage && (
         <Button
           className="mt-4"
@@ -389,7 +591,15 @@ function AgentDetail({
   const remove = useDeleteCustomAgent();
   const [confirm, setConfirm] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
+  const [editTeamOpen, setEditTeamOpen] = useState(false);
   const [inUse, setInUse] = useState<string | null>(null);
+
+  const teamRoles = useMemo(() => {
+    return parseTeamRoles((agent as any).instructions, agent.description);
+  }, [agent]);
+
+  const isTeam = Boolean(teamRoles) || agent.name === "agent-team";
+
   function confirmDelete() {
     remove.reset();
     setInUse(null);
@@ -407,7 +617,7 @@ function AgentDetail({
   }
   return (
     <>
-      {canEdit ? (
+      {canEdit && !isTeam ? (
         <CustomAgentConfigForm id={agent.id} name={agent.name} onDelete={confirmDelete} />
       ) : (
         <>
@@ -415,7 +625,7 @@ function AgentDetail({
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <h1 className="min-w-0 break-words text-2xl font-semibold">{agent.name}</h1>
-              {agent.description?.toLowerCase().includes("team") && (
+              {isTeam && (
                 <span className="text-xs bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-semibold shrink-0">
                   Team
                 </span>
@@ -425,12 +635,21 @@ function AgentDetail({
               {!canEdit && (
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={() => setCloneOpen(true)}
-                  className="gap-1.5"
+                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
                 >
                   <CopyIcon className="size-3.5" />
                   Customize as My Team
+                </Button>
+              )}
+              {canEdit && isTeam && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditTeamOpen(true)}
+                  className="gap-1.5 border-emerald-500/40 hover:bg-emerald-500/10"
+                >
+                  Edit Team Roles
                 </Button>
               )}
               {owned === true && (
@@ -445,16 +664,45 @@ function AgentDetail({
           </p>
         </>
       )}
+
+      {/* Visual Team Composition Card */}
+      {isTeam && teamRoles && (
+        <TeamCompositionCard
+          agentName={agent.name}
+          roles={teamRoles}
+          canEdit={canEdit}
+          onCustomize={() => setCloneOpen(true)}
+          onEditRoles={canEdit ? () => setEditTeamOpen(true) : undefined}
+        />
+      )}
+
       <CreateAgentTeamDialog
         open={cloneOpen}
         onOpenChange={setCloneOpen}
         initialName={`my-${agent.name}`}
         initialDescription={agent.description || `Custom team based on ${agent.name}`}
+        initialRoles={teamRoles || undefined}
+        initialHarness={agent.harness || "codex"}
         onCreate={async (input) => {
           const newAgent = await save.mutateAsync(input);
           navigate(agentPath(newAgent.id));
         }}
       />
+
+      <CreateAgentTeamDialog
+        open={editTeamOpen}
+        onOpenChange={setEditTeamOpen}
+        initialName={agent.name}
+        initialDescription={agent.description || ""}
+        initialRoles={teamRoles || undefined}
+        initialHarness={agent.harness || "codex"}
+        isEditMode
+        onCreate={async (input) => {
+          const updated = await save.mutateAsync({ ...input, id: agent.id });
+          navigate(agentPath(updated.id));
+        }}
+      />
+
       <dl className="my-6 grid grid-cols-2 gap-4 text-ui">
         {!canEdit && (
           <div>
@@ -475,7 +723,8 @@ function AgentDetail({
           <dd>{date(agent.updated_at)}</dd>
         </div>
       </dl>
-      {!canEdit && (
+
+      {!canEdit && !isTeam && (
         <section className="mb-6">
           <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             MCP servers
@@ -497,63 +746,78 @@ function AgentDetail({
           )}
         </section>
       )}
-      <section className="mb-6">
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Skills
-        </h2>
-        {agent.skills?.length ? (
-          <ul className="space-y-2">
-            {agent.skills.map((skill) => (
-              <li key={skill.name} className="rounded-xl border border-border p-3">
-                <p className="text-ui font-medium">{skill.name}</p>
-                <p className="text-xs text-muted-foreground">{skill.description}</p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-ui text-muted-foreground">No skills listed.</p>
-        )}
-      </section>
+
+      {!canEdit && !isTeam && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Skills
+          </h2>
+          {agent.skills?.length ? (
+            <ul className="space-y-2">
+              {agent.skills.map((skill) => (
+                <li key={skill.name} className="rounded-xl border border-border p-3">
+                  <p className="text-ui font-medium">{skill.name}</p>
+                  <p className="text-xs text-muted-foreground">{skill.description}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-ui text-muted-foreground">No skills listed.</p>
+          )}
+        </section>
+      )}
+
       <p className="text-xs text-muted-foreground">
         {owned === true
           ? editable
             ? "Changes apply to sessions on their next turn."
             : "Update the server to enable configuration editing."
           : owned === false
-            ? "Server-provided agents are read-only."
+            ? "Server-provided agents are read-only. Click 'Customize as My Team' to clone and modify."
             : "Update the server to enable agent deletion. Ownership information is unavailable."}
       </p>
+
       <Dialog
         open={confirm}
         onOpenChange={(open) => {
           if (!remove.isPending) setConfirm(open);
         }}
       >
-        <DialogContent showCloseButton={!remove.isPending}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {agent.name}?</DialogTitle>
+            <DialogTitle>Delete {agent.name}</DialogTitle>
             <DialogDescription>
-              {inUse === null
-                ? "This removes the agent from your collection. This cannot be undone."
-                : `${inUse} session(s) still use this agent. Removing it can stop those sessions from continuing. Remove it anyway?`}
+              {inUse === null ? (
+                `Are you sure you want to delete ${agent.name}?`
+              ) : (
+                <span className="flex flex-col gap-2">
+                  <span>
+                    {agent.name} is used by {inUse} existing {inUse === "1" ? "session" : "sessions"}.
+                  </span>
+                  <span>Deleting it will also delete those sessions.</span>
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
-          {remove.error && (
+          {remove.isError && (
             <p role="alert" className="text-ui text-destructive">
-              {remove.error.message}
+              Could not delete {agent.name}.
             </p>
           )}
           <DialogFooter>
-            <Button variant="ghost" disabled={remove.isPending} onClick={() => setConfirm(false)}>
+            <Button
+              variant="outline"
+              disabled={remove.isPending}
+              onClick={() => setConfirm(false)}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
               loading={remove.isPending}
-              disabled={remove.isPending}
               onClick={() => void onRemove()}
             >
-              {inUse === null ? "Delete" : "Remove anyway"}
+              {inUse === null ? "Delete" : "Delete agent and sessions"}
             </Button>
           </DialogFooter>
         </DialogContent>

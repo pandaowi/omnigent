@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { PlusIcon, TrashIcon, UsersIcon, ShieldCheckIcon, Code2Icon, CompassIcon } from "lucide-react";
+import {
+  PlusIcon,
+  TrashIcon,
+  UsersIcon,
+  ShieldCheckIcon,
+  Code2Icon,
+  CompassIcon,
+  SparklesIcon,
+  CpuIcon,
+  ServerIcon,
+  BotIcon,
+  LayersIcon,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,26 +42,92 @@ export interface TeamMemberRole {
   model?: string;
 }
 
-const DEFAULT_ROLES: TeamMemberRole[] = [
+const PRESET_TEAMS: {
+  title: string;
+  icon: typeof SparklesIcon;
+  description: string;
+  roles: TeamMemberRole[];
+}[] = [
   {
-    id: "role_1",
-    roleName: "Architect & Planner",
-    focus: "Analyze requirements, design modular architecture, break down tasks into actionable steps.",
-    harness: "codex",
+    title: "Full-Stack Squad",
+    icon: Code2Icon,
+    description: "Standard end-to-end engineering squad with architecture, implementation, and review.",
+    roles: [
+      {
+        id: "role_1",
+        roleName: "Architect & Planner",
+        focus: "Analyze requirements, design modular architecture, author specifications, and break down tasks.",
+        harness: "codex",
+        model: "gpt-4o",
+      },
+      {
+        id: "role_2",
+        roleName: "Core Developer",
+        focus: "Write clean production code, implement features, integrate endpoints, and run local test suites.",
+        harness: "opencode",
+        model: "claude-3-5-sonnet",
+      },
+      {
+        id: "role_3",
+        roleName: "Code Reviewer & QA",
+        focus: "Audit code diffs, verify security best practices, review test coverage, and inspect edge cases.",
+        harness: "claude-native",
+        model: "claude-3-5-sonnet",
+      },
+    ],
   },
   {
-    id: "role_2",
-    roleName: "Core Developer",
-    focus: "Write and refactor code, apply changes to repository, run build and test commands.",
-    harness: "opencode",
+    title: "Security & Refactor",
+    icon: ShieldCheckIcon,
+    description: "Specialized in auditing vulnerabilities, code hygiene, and defensive refactoring.",
+    roles: [
+      {
+        id: "role_1",
+        roleName: "Security Auditor",
+        focus: "Scan codebase for CVEs, permission bypasses, input validation flaws, and unsafe data flows.",
+        harness: "codex",
+        model: "gpt-4o",
+      },
+      {
+        id: "role_2",
+        roleName: "Refactoring Engineer",
+        focus: "Apply structural improvements, decouple tight dependencies, and preserve existing unit tests.",
+        harness: "opencode",
+        model: "claude-3-5-sonnet",
+      },
+      {
+        id: "role_3",
+        roleName: "Regression Tester",
+        focus: "Run test matrices, verify backwards compatibility, and benchmark performance metrics.",
+        harness: "antigravity-native",
+        model: "gemini-2.5-pro",
+      },
+    ],
   },
   {
-    id: "role_3",
-    roleName: "Code Reviewer & QA",
-    focus: "Review diffs, enforce coding standards, audit security, and verify edge-case coverage.",
-    harness: "antigravity-native",
+    title: "TDD & Test Suite",
+    icon: CompassIcon,
+    description: "Test-driven development workflow: test specifications first, then robust implementation.",
+    roles: [
+      {
+        id: "role_1",
+        roleName: "Test Engineer",
+        focus: "Draft failing test cases (unit, integration, e2e) according to functional requirements.",
+        harness: "codex",
+        model: "gpt-4o",
+      },
+      {
+        id: "role_2",
+        roleName: "Feature Implementer",
+        focus: "Write minimal code required to pass all tests, then refactor cleanly.",
+        harness: "opencode",
+        model: "claude-3-5-sonnet",
+      },
+    ],
   },
 ];
+
+const DEFAULT_ROLES: TeamMemberRole[] = PRESET_TEAMS[0].roles;
 
 const AGENT_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -59,41 +137,55 @@ export function CreateAgentTeamDialog({
   onCreate,
   initialName = "",
   initialDescription = "",
+  initialRoles,
+  initialHarness = "codex",
+  initialModel = "gpt-4o",
+  initialHostId = "",
+  isEditMode = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (input: AgentBundleInput) => void | Promise<void>;
   initialName?: string;
   initialDescription?: string;
+  initialRoles?: TeamMemberRole[];
+  initialHarness?: string;
+  initialModel?: string;
+  initialHostId?: string;
+  isEditMode?: boolean;
 }) {
   const { data: hosts = [] } = useHosts();
   const onlineHosts = hosts.filter((h) => h.status === "online");
 
   const [teamName, setTeamName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
-  const [orchestratorHostId, setOrchestratorHostId] = useState("");
-  const [orchestratorHarness, setOrchestratorHarness] = useState("codex");
-  const [orchestratorModel, setOrchestratorModel] = useState("gpt-4o");
-  const [roles, setRoles] = useState<TeamMemberRole[]>(DEFAULT_ROLES);
+  const [orchestratorHostId, setOrchestratorHostId] = useState(initialHostId);
+  const [orchestratorHarness, setOrchestratorHarness] = useState(initialHarness);
+  const [orchestratorModel, setOrchestratorModel] = useState(initialModel);
+  const [roles, setRoles] = useState<TeamMemberRole[]>(initialRoles && initialRoles.length > 0 ? initialRoles : DEFAULT_ROLES);
   const [pending, setPending] = useState(false);
 
-  // Sync initial props when dialog opens
+  // Sync initial props when dialog opens or props change
   useEffect(() => {
     if (open) {
       if (initialName) setTeamName(initialName);
       if (initialDescription) setDescription(initialDescription);
+      if (initialRoles && initialRoles.length > 0) setRoles(initialRoles);
+      if (initialHarness) setOrchestratorHarness(initialHarness);
+      if (initialModel) setOrchestratorModel(initialModel);
+      if (initialHostId) setOrchestratorHostId(initialHostId);
     }
-  }, [open, initialName, initialDescription]);
-
-  // Model choices for orchestrator
-  const { data: hostModels } = useHostModelOptions(
-    orchestratorHostId || null,
-    orchestratorHarness,
-    Boolean(orchestratorHostId),
-  );
+  }, [open, initialName, initialDescription, initialRoles, initialHarness, initialModel, initialHostId]);
 
   const nameInvalid = teamName.trim().length > 0 && !AGENT_NAME_PATTERN.test(teamName.trim());
   const canSubmit = AGENT_NAME_PATTERN.test(teamName.trim()) && roles.length > 0;
+
+  function applyPreset(preset: (typeof PRESET_TEAMS)[number]) {
+    setRoles(preset.roles);
+    if (!description || description.startsWith("Multi-role Agent Team")) {
+      setDescription(preset.description);
+    }
+  }
 
   function addRole() {
     const newId = `role_${Date.now()}`;
@@ -104,6 +196,7 @@ export function CreateAgentTeamDialog({
         roleName: `Specialist ${prev.length + 1}`,
         focus: "Specialized tasks for this team member",
         harness: "codex",
+        model: "gpt-4o",
       },
     ]);
   }
@@ -129,7 +222,7 @@ ${r.model ? `- **Preferred Model**: ${r.model}` : ""}`,
 
     return `# Agent Team: ${teamName.trim()}
 
-You are the Lead Orchestrator of the "${teamName.trim()}" autonomous development team.
+You are the Lead Orchestrator of the "${teamName.trim()}" autonomous multi-role development team.
 Your goal is to coordinate tasks across specialized team roles and deliver cohesive, robust solutions.
 
 ## Team Members & Responsibilities:
@@ -179,17 +272,40 @@ ${roleDescriptions}
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[88vh] flex-col gap-4 sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-4 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UsersIcon className="size-5 text-emerald-500" />
-            <span>Create Agent Team (Multi-Role Orchestration)</span>
+            <span>{isEditMode ? "Edit Agent Team" : "Create Agent Team (Multi-Role Orchestration)"}</span>
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
             Configure a coordinated team of AI agents (like Paseo Agent Team). Each role can be
-            assigned specific responsibilities, engines, and runner hosts.
+            assigned specific responsibilities, engines, models, and runner hosts.
           </p>
         </DialogHeader>
+
+        {/* Quick Presets */}
+        <div className="flex flex-col gap-1.5 px-1">
+          <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Quick Templates
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {PRESET_TEAMS.map((preset) => {
+              const Icon = preset.icon;
+              return (
+                <button
+                  key={preset.title}
+                  type="button"
+                  onClick={() => applyPreset(preset)}
+                  className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/5 cursor-pointer"
+                >
+                  <Icon className="size-3.5 text-emerald-500" />
+                  <span>{preset.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1">
           {/* Team Name */}
@@ -219,48 +335,25 @@ ${roleDescriptions}
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="A short summary of this team's workflow and domain"
+              placeholder="Brief summary of this team's mission..."
             />
           </div>
 
-          {/* Lead Orchestrator Settings */}
-          <div className="rounded-lg border border-border bg-card/60 p-3.5 flex flex-col gap-3">
+          {/* Lead Orchestrator Configuration */}
+          <div className="rounded-xl border border-border/80 bg-muted/20 p-3 flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold flex items-center gap-2">
-                <CompassIcon className="size-4 text-primary" />
-                Team Lead Orchestrator
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <UsersIcon className="size-3.5 text-emerald-500" />
+                Lead Orchestrator (Primary Chat Coordinator)
               </span>
-              <Badge variant="outline" className="text-xs font-normal">
-                Coordinates the team
-              </Badge>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Runtime / Host</label>
-                <Select
-                  value={orchestratorHostId || "__any__"}
-                  onValueChange={(val) => setOrchestratorHostId(val === "__any__" ? "" : val)}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select host" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__any__">Any / Standard</SelectItem>
-                    {hosts.map((h) => (
-                      <SelectItem key={h.host_id} value={h.host_id}>
-                        {h.name} {h.status === "online" ? "● Online" : "○ Offline"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Harness Engine</label>
+                <label className="text-xs text-muted-foreground">Orchestrator Harness</label>
                 <Select
                   value={orchestratorHarness}
-                  onValueChange={setOrchestratorHarness}
+                  onValueChange={(val) => setOrchestratorHarness(val)}
                 >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
@@ -269,20 +362,40 @@ ${roleDescriptions}
                     <SelectItem value="codex">Codex (Runner Native)</SelectItem>
                     <SelectItem value="opencode">OpenCode (Runner Native)</SelectItem>
                     <SelectItem value="antigravity-native">Antigravity CLI</SelectItem>
-                    <SelectItem value="claude-sdk">Claude SDK</SelectItem>
+                    <SelectItem value="claude-native">Claude Code CLI</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Orchestrator Model</label>
-              <Input
-                value={orchestratorModel}
-                onChange={(e) => setOrchestratorModel(e.target.value)}
-                placeholder="e.g. gpt-4o, claude-3-5-sonnet, gemini-2.5-pro"
-                className="h-8 text-xs"
-              />
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted-foreground">Orchestrator Model</label>
+                <Input
+                  value={orchestratorModel}
+                  onChange={(e) => setOrchestratorModel(e.target.value)}
+                  placeholder="e.g. gpt-4o, claude-3-5-sonnet"
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted-foreground">Execution Host / Runner</label>
+                <Select
+                  value={orchestratorHostId || "__default__"}
+                  onValueChange={(val) => setOrchestratorHostId(val === "__default__" ? "" : val)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Default (auto-assign)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Auto (Default Workspace)</SelectItem>
+                    {hosts.map((h) => (
+                      <SelectItem key={h.host_id} value={h.host_id}>
+                        {h.name} {h.status === "online" ? "● Online" : "○ Offline"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -290,8 +403,8 @@ ${roleDescriptions}
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold flex items-center gap-1.5">
-                <Code2Icon className="size-4 text-emerald-500" />
-                Team Roles ({roles.length})
+                <LayersIcon className="size-4 text-emerald-500" />
+                Team Roles &amp; Specialists ({roles.length})
               </span>
               <Button
                 type="button"
@@ -343,7 +456,7 @@ ${roleDescriptions}
                     className="min-h-[50px] text-xs resize-none"
                   />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div className="flex flex-col gap-0.5">
                       <label className="text-[11px] text-muted-foreground">Engine / Harness</label>
                       <Select
@@ -360,6 +473,16 @@ ${roleDescriptions}
                           <SelectItem value="claude-native">Claude Code CLI</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[11px] text-muted-foreground">Model</label>
+                      <Input
+                        value={role.model || ""}
+                        onChange={(e) => updateRole(role.id, { model: e.target.value })}
+                        placeholder="e.g. gpt-4o, claude-3-5"
+                        className="h-7 text-xs font-mono"
+                      />
                     </div>
 
                     <div className="flex flex-col gap-0.5">
@@ -399,7 +522,7 @@ ${roleDescriptions}
               Cancel
             </Button>
             <Button type="submit" disabled={!canSubmit || pending} loading={pending}>
-              Create Team
+              {isEditMode ? "Save Changes" : "Create Team"}
             </Button>
           </DialogFooter>
         </form>
