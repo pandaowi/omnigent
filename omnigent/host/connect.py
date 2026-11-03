@@ -4052,7 +4052,7 @@ class HostProcess:
         """
         harness = canonicalize_harness(frame.harness) or frame.harness
         with_source = functools.partial(_with_model_configuration_source, harness=harness)
-        if harness == "codex-native":
+        if harness in ("codex-native", "codex", "native-codex"):
             # Harness-truth lane: every launch shape is answered from the
             # shared catalog, probed from the configured Codex binary itself.
             # No curated fallback and no serving-endpoints listing — a probe
@@ -4214,7 +4214,7 @@ class HostProcess:
                 error="the antigravity model probe failed — see the host log",
             )
 
-        if harness != "claude-native":
+        if harness not in ("claude-native", "claude", "native-claude"):
             return HostModelOptionsResultFrame(
                 request_id=frame.request_id,
                 status="failed",

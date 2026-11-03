@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { BRAIN_HARNESS_LABELS, useBrainHarnessLabels } from "@/lib/agentLabels";
 import type { AgentBundleInput } from "@/lib/agentBundle";
 import { useHosts, useHostModelOptions } from "@/hooks/useHosts";
@@ -45,9 +46,76 @@ export interface TeamMemberRole {
 
 const AGENT_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
+const HARNESS_FALLBACK_MODELS: Record<string, { id: string; displayName: string; isDefault?: boolean }[]> = {
+  codex: [
+    { id: "gpt-5.6-sol", displayName: "GPT 5.6 Sol", isDefault: true },
+    { id: "gpt-5.6-terra", displayName: "GPT 5.6 Terra" },
+    { id: "gpt-5.6-luna", displayName: "GPT 5.6 Luna" },
+    { id: "gpt-5-mini", displayName: "GPT 5 Mini" },
+    { id: "gpt-4o", displayName: "GPT-4o" },
+    { id: "gpt-4o-mini", displayName: "GPT-4o Mini" },
+    { id: "o1", displayName: "o1" },
+    { id: "o3-mini", displayName: "o3-mini" },
+  ],
+  "codex-native": [
+    { id: "gpt-5.6-sol", displayName: "GPT 5.6 Sol", isDefault: true },
+    { id: "gpt-5.6-terra", displayName: "GPT 5.6 Terra" },
+    { id: "gpt-5.6-luna", displayName: "GPT 5.6 Luna" },
+    { id: "gpt-5-mini", displayName: "GPT 5 Mini" },
+    { id: "gpt-4o", displayName: "GPT-4o" },
+    { id: "gpt-4o-mini", displayName: "GPT-4o Mini" },
+    { id: "o1", displayName: "o1" },
+    { id: "o3-mini", displayName: "o3-mini" },
+  ],
+  "antigravity-native": [
+    { id: "gemini-3.8-flash-high", displayName: "Gemini 3.8 Flash (High)", isDefault: true },
+    { id: "gemini-4-argon-high", displayName: "Gemini 4 Argon (High)" },
+    { id: "gemini-3.8-flash-medium", displayName: "Gemini 3.8 Flash (Medium)" },
+    { id: "claude-sonnet-5-5-high", displayName: "Claude Sonnet 5.5 (High)" },
+    { id: "gpt-oss-120b-medium", displayName: "GPT OSS 120B (Medium)" },
+  ],
+  antigravity: [
+    { id: "gemini-3.8-flash-high", displayName: "Gemini 3.8 Flash (High)", isDefault: true },
+    { id: "gemini-4-argon-high", displayName: "Gemini 4 Argon (High)" },
+    { id: "gemini-3.8-flash-medium", displayName: "Gemini 3.8 Flash (Medium)" },
+    { id: "claude-sonnet-5-5-high", displayName: "Claude Sonnet 5.5 (High)" },
+    { id: "gpt-oss-120b-medium", displayName: "GPT OSS 120B (Medium)" },
+  ],
+  opencode: [
+    { id: "gpt-5.6-sol", displayName: "GPT 5.6 Sol", isDefault: true },
+    { id: "gpt-4o", displayName: "GPT-4o" },
+    { id: "claude-3-7-sonnet", displayName: "Claude 3.7 Sonnet" },
+    { id: "deepseek-chat", displayName: "DeepSeek-V3" },
+  ],
+  "opencode-native": [
+    { id: "gpt-5.6-sol", displayName: "GPT 5.6 Sol", isDefault: true },
+    { id: "gpt-4o", displayName: "GPT-4o" },
+    { id: "claude-3-7-sonnet", displayName: "Claude 3.7 Sonnet" },
+    { id: "deepseek-chat", displayName: "DeepSeek-V3" },
+  ],
+  "claude-native": [
+    { id: "claude-3-7-sonnet-latest", displayName: "Claude 3.7 Sonnet", isDefault: true },
+    { id: "claude-3-5-sonnet-latest", displayName: "Claude 3.5 Sonnet" },
+    { id: "claude-3-5-haiku-latest", displayName: "Claude 3.5 Haiku" },
+  ],
+  claude: [
+    { id: "claude-3-7-sonnet-latest", displayName: "Claude 3.7 Sonnet", isDefault: true },
+    { id: "claude-3-5-sonnet-latest", displayName: "Claude 3.5 Sonnet" },
+    { id: "claude-3-5-haiku-latest", displayName: "Claude 3.5 Haiku" },
+  ],
+  "claude-sdk": [
+    { id: "claude-3-7-sonnet-latest", displayName: "Claude 3.7 Sonnet", isDefault: true },
+    { id: "claude-3-5-sonnet-latest", displayName: "Claude 3.5 Sonnet" },
+    { id: "claude-3-5-haiku-latest", displayName: "Claude 3.5 Haiku" },
+  ],
+};
+
 /**
- * Reusable dynamic Model Picker driven directly by live host model options probing.
- * Exactly matches the behavior and UX in CreateAgentDialog.
+ * Clean, single-control dynamic Model Picker.
+ * - Prioritizes live-probed models from host runner.
+ * - Provides graceful fallback options when host probe is loading or unavailable.
+ * - Renders ONLY a select dropdown when picking from known models (no redundant input).
+ * - Allows switching to custom model input via "+ Custom model identifier...".
  */
 function HostModelPicker({
   label = "Model",
@@ -64,71 +132,138 @@ function HostModelPicker({
   setModel: (val: string) => void;
   compact?: boolean;
 }) {
+  const probeHarness = harness === "codex" ? "codex-native" : harness;
   const { data: hostModels, isLoading } = useHostModelOptions(
     hostId || null,
-    harness,
+    probeHarness,
     Boolean(hostId),
   );
 
-  // Auto-sync default model from host when models load or harness changes
-  useEffect(() => {
+  const availableModels = useMemo(() => {
     if (hostModels && hostModels.length > 0) {
-      const exists = hostModels.some((m) => m.id === model || m.model === model);
-      if (!model || !exists) {
-        const def = hostModels.find((m) => m.isDefault) ?? hostModels[0];
-        if (def) {
-          setModel(def.id || def.model || "");
-        }
-      }
+      return hostModels.map((m) => ({
+        id: m.id || m.model || "",
+        displayName: m.displayName || m.model || m.id || "",
+        isDefault: Boolean(m.isDefault),
+      }));
     }
+    return (
+      HARNESS_FALLBACK_MODELS[harness] ||
+      HARNESS_FALLBACK_MODELS[harness.replace("-native", "")] ||
+      []
+    );
   }, [hostModels, harness]);
 
+  const [isCustom, setIsCustom] = useState(false);
+
+  // Auto-sync default model from list when models load or harness changes
+  useEffect(() => {
+    if (availableModels.length > 0) {
+      const match = availableModels.find((m) => m.id === model);
+      if (!match) {
+        if (!model) {
+          const def = availableModels.find((m) => m.isDefault) ?? availableModels[0];
+          if (def) {
+            setModel(def.id);
+            setIsCustom(false);
+          }
+        }
+      } else {
+        setIsCustom(false);
+      }
+    }
+  }, [availableModels, harness]);
+
+  const isKnownModel = availableModels.some((m) => m.id === model);
+  const showCustomInput = isCustom || (Boolean(model) && !isKnownModel && availableModels.length > 0);
+
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <label className={compact ? "text-[11px] text-muted-foreground" : "text-xs text-muted-foreground"}>
+    <div className="flex flex-col gap-1 min-w-0">
+      <div className="flex items-center justify-between h-4">
+        <label
+          className={cn(
+            "text-muted-foreground truncate",
+            compact ? "text-[11px]" : "text-xs font-medium",
+          )}
+        >
           {label} <span className="text-destructive">*</span>
         </label>
         {isLoading && (
-          <span className="text-[10px] text-muted-foreground animate-pulse">
-            Detecting models on host…
+          <span className="text-[10px] text-muted-foreground animate-pulse truncate">
+            Detecting…
           </span>
         )}
       </div>
 
-      {hostModels && hostModels.length > 0 && (
+      {showCustomInput ? (
+        <div className="flex items-center gap-1">
+          <Input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="e.g. gpt-4o, claude-3-5-sonnet"
+            className={cn("w-full min-w-0 font-mono", compact ? "h-7 text-xs" : "h-8 text-xs")}
+            autoFocus
+          />
+          {availableModels.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-xs"
+              onClick={() => {
+                setIsCustom(false);
+                const def = availableModels.find((m) => m.isDefault) ?? availableModels[0];
+                if (def) setModel(def.id);
+              }}
+              title="Return to list of available models"
+              className={compact ? "size-7 shrink-0 text-xs" : "size-8 shrink-0 text-xs"}
+            >
+              <SparklesIcon className="size-3 text-emerald-500" />
+            </Button>
+          )}
+        </div>
+      ) : (
         <Select
           value={model}
-          onValueChange={(val) => setModel(val)}
+          onValueChange={(val) => {
+            if (val === "__custom__") {
+              setIsCustom(true);
+              setModel("");
+            } else {
+              setIsCustom(false);
+              setModel(val);
+            }
+          }}
         >
-          <SelectTrigger className={compact ? "h-7 text-xs font-mono" : "h-8 text-xs font-mono"}>
-            <SelectValue placeholder="Pick from detected models on host..." />
+          <SelectTrigger
+            className={cn(
+              "w-full min-w-0 font-mono text-left truncate",
+              compact ? "h-7 text-xs" : "h-8 text-xs",
+            )}
+          >
+            <SelectValue placeholder="Select model..." className="truncate" />
           </SelectTrigger>
-          <SelectContent>
-            {hostModels.map((m) => (
+          <SelectContent className="max-h-60">
+            {availableModels.map((m) => (
               <SelectItem key={m.id} value={m.id} className="text-xs">
                 <div className="flex items-center justify-between gap-2 w-full">
-                  <span>{m.displayName || m.model || m.id}</span>
+                  <span className="truncate">{m.displayName || m.id}</span>
                   {m.isDefault && (
-                    <span className="text-[10px] text-emerald-500 font-medium">(Default)</span>
+                    <span className="text-[10px] text-emerald-500 font-medium shrink-0">
+                      (Default)
+                    </span>
                   )}
                 </div>
               </SelectItem>
             ))}
+            <SelectItem
+              value="__custom__"
+              className="text-xs text-muted-foreground border-t border-border/40 mt-1 pt-1 italic font-sans"
+            >
+              + Custom model identifier...
+            </SelectItem>
           </SelectContent>
         </Select>
       )}
-
-      <Input
-        value={model}
-        onChange={(e) => setModel(e.target.value)}
-        placeholder={
-          hostModels && hostModels.length > 0
-            ? "Or type a custom model identifier..."
-            : "e.g. gpt-4o, claude-3-5-sonnet, gemini-2.5-pro"
-        }
-        className={compact ? "h-7 text-xs font-mono" : "h-8 text-xs font-mono"}
-      />
     </div>
   );
 }
@@ -413,7 +548,7 @@ ${roleDescriptions}
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-4 sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-4 sm:max-w-3xl lg:max-w-4xl overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UsersIcon className="size-5 text-emerald-500" />
@@ -448,7 +583,7 @@ ${roleDescriptions}
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-1">
           {/* Team Name */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-muted-foreground">
@@ -489,11 +624,13 @@ ${roleDescriptions}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">
-                  Harness <span className="text-destructive">*</span>
-                </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center h-4">
+                  <label className="text-xs font-medium text-muted-foreground truncate">
+                    Harness <span className="text-destructive">*</span>
+                  </label>
+                </div>
                 <Select
                   value={orchestratorHarness}
                   onValueChange={(val) => {
@@ -501,16 +638,16 @@ ${roleDescriptions}
                     setOrchestratorModel("");
                   }}
                 >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
+                  <SelectTrigger className="w-full min-w-0 h-8 text-xs truncate">
+                    <SelectValue className="truncate" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60">
                     {harnessOptions.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>
                         <div className="flex items-center justify-between gap-2 w-full">
-                          <span>{opt.label}</span>
+                          <span className="truncate">{opt.label}</span>
                           {opt.badge && (
-                            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
                               {opt.badge}
                             </span>
                           )}
@@ -521,20 +658,25 @@ ${roleDescriptions}
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Runner Host</label>
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center h-4">
+                  <label className="text-xs font-medium text-muted-foreground truncate">Runner Host</label>
+                </div>
                 <Select
                   value={orchestratorHostId || "__default__"}
                   onValueChange={(val) => setOrchestratorHostId(val === "__default__" ? "" : val)}
                 >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select runtime host" />
+                  <SelectTrigger className="w-full min-w-0 h-8 text-xs truncate">
+                    <SelectValue placeholder="Select runtime host" className="truncate" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60">
                     <SelectItem value="__default__">Any / Cloud (Standard)</SelectItem>
                     {hosts.map((h) => (
                       <SelectItem key={h.host_id} value={h.host_id}>
-                        {h.name} {h.status === "online" ? "● Online" : "○ Offline"}
+                        <span className="truncate">{h.name}</span>{" "}
+                        <span className={h.status === "online" ? "text-emerald-500 text-[11px]" : "text-muted-foreground text-[11px]"}>
+                          {h.status === "online" ? "● Online" : "○ Offline"}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -610,27 +752,29 @@ ${roleDescriptions}
                       className="min-h-[50px] text-xs resize-none"
                     />
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="flex flex-col gap-0.5">
-                        <label className="text-[11px] text-muted-foreground">
-                          Harness <span className="text-destructive">*</span>
-                        </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center h-4">
+                          <label className="text-[11px] text-muted-foreground truncate">
+                            Harness <span className="text-destructive">*</span>
+                          </label>
+                        </div>
                         <Select
                           value={role.harness}
                           onValueChange={(val) => {
                             updateRole(role.id, { harness: val, model: "" });
                           }}
                         >
-                          <SelectTrigger className="h-7 text-xs">
-                            <SelectValue />
+                          <SelectTrigger className="w-full min-w-0 h-7 text-xs truncate">
+                            <SelectValue className="truncate" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="max-h-60">
                             {harnessOptions.map((opt) => (
                               <SelectItem key={opt.value} value={opt.value}>
                                 <div className="flex items-center justify-between gap-2 w-full">
-                                  <span>{opt.label}</span>
+                                  <span className="truncate">{opt.label}</span>
                                   {opt.badge && (
-                                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
                                       {opt.badge}
                                     </span>
                                   )}
@@ -641,22 +785,27 @@ ${roleDescriptions}
                         </Select>
                       </div>
 
-                      <div className="flex flex-col gap-0.5">
-                        <label className="text-[11px] text-muted-foreground">Runner Host</label>
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center h-4">
+                          <label className="text-[11px] text-muted-foreground truncate">Runner Host</label>
+                        </div>
                         <Select
                           value={role.hostId || "__default__"}
                           onValueChange={(val) =>
                             updateRole(role.id, { hostId: val === "__default__" ? undefined : val })
                           }
                         >
-                          <SelectTrigger className="h-7 text-xs">
-                            <SelectValue placeholder="Inherit orchestrator host" />
+                          <SelectTrigger className="w-full min-w-0 h-7 text-xs truncate">
+                            <SelectValue placeholder="Inherit orchestrator host" className="truncate" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="max-h-60">
                             <SelectItem value="__default__">Inherit Host</SelectItem>
                             {hosts.map((h) => (
                               <SelectItem key={h.host_id} value={h.host_id}>
-                                {h.name} {h.status === "online" ? "● Online" : "○ Offline"}
+                                <span className="truncate">{h.name}</span>{" "}
+                                <span className={h.status === "online" ? "text-emerald-500 text-[11px]" : "text-muted-foreground text-[11px]"}>
+                                  {h.status === "online" ? "● Online" : "○ Offline"}
+                                </span>
                               </SelectItem>
                             ))}
                           </SelectContent>

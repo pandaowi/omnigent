@@ -1058,6 +1058,15 @@ def create_hosts_router(
         _require_harness_setup_support(conn, "pre-launch model listing")
 
         canon = canonicalize_harness(harness) or harness
+        if canon in ("codex", "native-codex"):
+            proxy_harness = "codex-native"
+        elif canon in ("claude", "native-claude"):
+            proxy_harness = "claude-native"
+        elif canon in ("opencode", "native-opencode"):
+            proxy_harness = "opencode-native"
+        else:
+            proxy_harness = canon
+
         is_antigravity = canon in (
             "antigravity-native",
             "antigravity",
@@ -1066,31 +1075,76 @@ def create_hosts_router(
             "agy-native",
             "agy",
         )
+        is_codex = canon in ("codex-native", "codex", "native-codex")
+        is_claude = canon in ("claude-native", "claude", "native-claude", "claude-sdk")
+        is_opencode = canon in ("opencode-native", "opencode", "native-opencode")
+
         try:
             result = await _proxy_model_options(
                 host_registry=host_registry,
                 host_conn=conn,
-                harness=canon,
+                harness=proxy_harness,
             )
         except Exception as exc:
             _logger.warning("Failed to proxy model options for harness %s: %s", canon, exc)
             result = {"status": "failed", "error": str(exc)}
 
-        if result.get("status") != "ok" and is_antigravity:
-            from omnigent.harnesses.antigravity_native.main import (
-                DEFAULT_ANTIGRAVITY_FALLBACK_MODELS,
-            )
-
-            result = {
-                "status": "ok",
-                "models": DEFAULT_ANTIGRAVITY_FALLBACK_MODELS,
-                "routable_models": [m["id"] for m in DEFAULT_ANTIGRAVITY_FALLBACK_MODELS],
-            }
         if result.get("status") != "ok":
-            raise HTTPException(
-                status_code=502,
-                detail=str(result.get("error") or "host model-options lookup failed"),
-            )
+            if is_antigravity:
+                from omnigent.harnesses.antigravity_native.main import (
+                    DEFAULT_ANTIGRAVITY_FALLBACK_MODELS,
+                )
+
+                result = {
+                    "status": "ok",
+                    "models": DEFAULT_ANTIGRAVITY_FALLBACK_MODELS,
+                    "routable_models": [m["id"] for m in DEFAULT_ANTIGRAVITY_FALLBACK_MODELS],
+                }
+            elif is_codex:
+                codex_fallbacks = [
+                    {"id": "gpt-5.6-sol", "displayName": "GPT 5.6 Sol (Default)", "isDefault": True},
+                    {"id": "gpt-5.6-terra", "displayName": "GPT 5.6 Terra"},
+                    {"id": "gpt-5.6-luna", "displayName": "GPT 5.6 Luna"},
+                    {"id": "gpt-5-mini", "displayName": "GPT 5 Mini"},
+                    {"id": "gpt-4o", "displayName": "GPT-4o"},
+                    {"id": "gpt-4o-mini", "displayName": "GPT-4o Mini"},
+                    {"id": "o1", "displayName": "o1"},
+                    {"id": "o3-mini", "displayName": "o3-mini"},
+                    {"id": "chatgpt-4o-latest", "displayName": "ChatGPT-4o Latest"},
+                ]
+                result = {
+                    "status": "ok",
+                    "models": codex_fallbacks,
+                    "routable_models": [m["id"] for m in codex_fallbacks],
+                }
+            elif is_claude:
+                claude_fallbacks = [
+                    {"id": "claude-3-7-sonnet-latest", "displayName": "Claude 3.7 Sonnet (Default)", "isDefault": True},
+                    {"id": "claude-3-5-sonnet-latest", "displayName": "Claude 3.5 Sonnet"},
+                    {"id": "claude-3-5-haiku-latest", "displayName": "Claude 3.5 Haiku"},
+                ]
+                result = {
+                    "status": "ok",
+                    "models": claude_fallbacks,
+                    "routable_models": [m["id"] for m in claude_fallbacks],
+                }
+            elif is_opencode:
+                opencode_fallbacks = [
+                    {"id": "gpt-5.6-sol", "displayName": "GPT 5.6 Sol (Default)", "isDefault": True},
+                    {"id": "gpt-4o", "displayName": "GPT-4o"},
+                    {"id": "claude-3-7-sonnet", "displayName": "Claude 3.7 Sonnet"},
+                    {"id": "deepseek-chat", "displayName": "DeepSeek-V3"},
+                ]
+                result = {
+                    "status": "ok",
+                    "models": opencode_fallbacks,
+                    "routable_models": [m["id"] for m in opencode_fallbacks],
+                }
+            else:
+                raise HTTPException(
+                    status_code=502,
+                    detail=str(result.get("error") or "host model-options lookup failed"),
+                )
         models = result.get("models")
         routable = result.get("routable_models")
         error = result.get("error")
