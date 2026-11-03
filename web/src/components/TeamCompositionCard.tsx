@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "@/components/routing/Link";
+import { Link } from "@/lib/routing";
 import type { TeamMemberRole } from "@/shell/CreateAgentTeamDialog";
 
 export function parseTeamRoles(instructions?: string | null, description?: string | null): TeamMemberRole[] | null {
