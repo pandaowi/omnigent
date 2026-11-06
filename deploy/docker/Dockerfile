@@ -87,7 +87,7 @@ WORKDIR /web
 # Workspace manifests + lockfile first so the install layer caches across pure
 # source edits. The electron package JSON is included so the root workspace is
 # structurally complete, but we --filter web to avoid downloading Electron.
-COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY patches/ ./patches/
 COPY web/package.json ./web/
 COPY web/electron/package.json ./web/electron/
