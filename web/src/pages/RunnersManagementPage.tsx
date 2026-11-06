@@ -9,13 +9,9 @@ import {
   UsersIcon,
   PlusIcon,
   Trash2Icon,
-  ShieldCheckIcon,
   BuildingIcon,
   UserCheckIcon,
   RefreshCwIcon,
-  AlertCircleIcon,
-  CheckCircle2Icon,
-  ArrowRightIcon,
   SlidersHorizontalIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -39,7 +35,6 @@ import {
   type OrganizationItem,
   fetchHostsList,
   fetchHostAssignments,
-  assignUserToHost,
   unassignUserFromHost,
   assignOrgToHost,
   unassignOrgFromHost,
@@ -47,9 +42,7 @@ import {
   createOrganization,
   deleteOrganization,
   addMemberToOrganization,
-  removeMemberFromOrganization,
 } from "@/lib/runnersApi";
-import { listUsers, type AccountListEntry } from "@/lib/accountsApi";
 
 export function RunnersManagementPage() {
   const navigate = useNavigate();
@@ -59,13 +52,11 @@ export function RunnersManagementPage() {
   // Data states
   const [hosts, setHosts] = useState<HostItem[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
-  const [allUsers, setAllUsers] = useState<AccountListEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dialog states for Host Assignment
   const [selectedHost, setSelectedHost] = useState<HostItem | null>(null);
   const [assignments, setAssignments] = useState<HostAssignments | null>(null);
-  const [assignUsername, setAssignUsername] = useState("");
   const [assignOrgId, setAssignOrgId] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -79,14 +70,12 @@ export function RunnersManagementPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [fetchedHosts, fetchedOrgs, fetchedUsers] = await Promise.all([
+    const [fetchedHosts, fetchedOrgs] = await Promise.all([
       fetchHostsList(),
       fetchOrganizations(),
-      listUsers(),
     ]);
     setHosts(fetchedHosts);
     setOrganizations(fetchedOrgs);
-    if (fetchedUsers) setAllUsers(fetchedUsers);
     setLoading(false);
   }, []);
 
@@ -100,25 +89,9 @@ export function RunnersManagementPage() {
   const openHostAssignments = async (host: HostItem) => {
     setSelectedHost(host);
     setAssignments(null);
-    setAssignUsername("");
     setAssignOrgId("");
     const data = await fetchHostAssignments(host.host_id);
     setAssignments(data);
-  };
-
-  const handleAssignUser = async () => {
-    if (!selectedHost || !assignUsername.trim()) return;
-    setActionLoading(true);
-    const ok = await assignUserToHost(selectedHost.host_id, assignUsername.trim());
-    setActionLoading(false);
-    if (ok) {
-      toast.success(`User ${assignUsername} assigned to runner successfully`);
-      setAssignUsername("");
-      const updated = await fetchHostAssignments(selectedHost.host_id);
-      setAssignments(updated);
-    } else {
-      toast.error("Failed to assign user to runner");
-    }
   };
 
   const handleUnassignUser = async (username: string) => {

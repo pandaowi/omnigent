@@ -23,8 +23,8 @@ let codePromise: Promise<CodeHighlighterPlugin> | null = null;
 const loadCode = (): Promise<CodeHighlighterPlugin> => {
   // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then)
   codePromise ??= import("@streamdown/code").then(({ code }) => {
-    realCode = code;
-    return code;
+    realCode = code as unknown as CodeHighlighterPlugin;
+    return realCode;
   });
   return codePromise;
 };

@@ -45,7 +45,6 @@ import {
 import { resolveChatFilePath } from "@/hooks/useWorkspaceChangedFiles";
 import { useFileViewer, useWorkspacePaths } from "@/shell/FileViewerContext";
 import {
-  DIFF_TONE_CLASS,
   CodePanel,
   CopyTextButton,
   OutputSection,

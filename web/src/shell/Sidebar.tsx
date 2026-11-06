@@ -40,7 +40,6 @@ import {
   CheckIcon as CheckMarkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ClockIcon,
   CircleAlertIcon,
   CircleStopIcon,
   FolderGit2Icon,

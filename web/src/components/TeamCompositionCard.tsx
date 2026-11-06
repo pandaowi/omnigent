@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import {
   CompassIcon,
   Code2Icon,
@@ -8,14 +7,11 @@ import {
   ArrowRightIcon,
   CopyIcon,
   PencilIcon,
-  MessageSquarePlusIcon,
   CpuIcon,
   ServerIcon,
   SparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Link } from "@/lib/routing";
 import type { TeamMemberRole } from "@/shell/CreateAgentTeamDialog";
 
 export function parseTeamRoles(instructions?: string | null, description?: string | null): TeamMemberRole[] | null {
@@ -131,7 +127,7 @@ export function TeamCompositionCard({
   onEditRoles?: () => void;
 }) {
   return (
-    <div className="my-6 flex flex-col gap-5 rounded-2xl border border-border bg-card/60 p-5 shadow-xs">
+    <div data-testid={`team-composition-${agentName}`} className="my-6 flex flex-col gap-5 rounded-2xl border border-border bg-card/60 p-5 shadow-xs">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2.5">

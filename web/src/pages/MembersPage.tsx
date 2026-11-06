@@ -13,10 +13,8 @@ import {
   UserPlusIcon,
   ServerIcon,
   CpuIcon,
-  XIcon,
   ArrowLeftIcon,
   ChevronDownIcon,
-  CheckIcon,
   SparklesIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,9 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
   CardContent,
 } from "@/components/ui/card";
 import {
@@ -50,32 +45,25 @@ import {
 } from "@/lib/accountsApi";
 import {
   type HostItem,
-  type AvailableRuntime,
   type ReadyHarnessGroup,
   type UserExecutionSetting,
   fetchHostsList,
   fetchExecutionOverview,
   updateUserExecution,
-  fetchAllAvailableRuntimes,
   fetchRunnerReadyHarnesses,
 } from "@/lib/runnersApi";
-import { getCurrentIsAdmin, resolveIdentity } from "@/lib/identity";
+import { resolveIdentity } from "@/lib/identity";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { withBasePath } from "@/lib/basePath";
-import { isSingleUserMode } from "@/lib/capabilities";
-
 export function MembersPage() {
   const info = useServerInfo();
   const manageable = info !== "loading" && info.accounts_enabled;
-  const isSingleUser = isSingleUserMode(info);
-  const [meIsAdmin, setMeIsAdmin] = useState<boolean | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
   const [users, setUsers] = useState<AccountListEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Execution overview, hosts & ready runtimes
   const [hosts, setHosts] = useState<HostItem[]>([]);
-  const [allRuntimes, setAllRuntimes] = useState<AvailableRuntime[]>([]);
   const [executionMap, setExecutionMap] = useState<Record<string, UserExecutionSetting>>({});
 
   // Active Member for Dedicated Execution Page View
@@ -106,8 +94,6 @@ export function MembersPage() {
       if (unmounted) return;
       setMeId(id ?? null);
     });
-    const admin = getCurrentIsAdmin();
-    setMeIsAdmin(admin);
     return () => {
       unmounted = true;
     };
@@ -125,10 +111,6 @@ export function MembersPage() {
       setUsers(data);
       setHosts(hostsData);
       setExecutionMap(execOverview);
-
-      // Fetch all ready runtimes
-      const runtimes = await fetchAllAvailableRuntimes(hostsData);
-      setAllRuntimes(runtimes);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
     }
@@ -357,7 +339,7 @@ export function MembersPage() {
       ? defaultHarness
       : enabledHarnesses[0];
 
-    let finalDefaultModel = defaultModel;
+    let finalDefaultModel: string | null = defaultModel;
     if (!finalDefaultModel || (finalAllowedModels && !finalAllowedModels.includes(finalDefaultModel))) {
       finalDefaultModel = finalAllowedModels && finalAllowedModels.length > 0 ? finalAllowedModels[0] : null;
       if (!finalDefaultModel) {

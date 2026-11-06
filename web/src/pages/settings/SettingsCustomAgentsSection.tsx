@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   BotIcon,
   CopyIcon,
@@ -8,8 +7,6 @@ import {
   TrashIcon,
   UsersIcon,
   CpuIcon,
-  SparklesIcon,
-  LayersIcon,
   PencilIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "@/lib/routing";
@@ -28,7 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CreateAgentDialog, CreateAgentForm } from "@/shell/CreateAgentDialog";
-import { CreateAgentTeamDialog, type TeamMemberRole } from "@/shell/CreateAgentTeamDialog";
+import { CreateAgentTeamDialog } from "@/shell/CreateAgentTeamDialog";
 import { TeamCompositionCard, parseTeamRoles } from "@/components/TeamCompositionCard";
 import { useSettingsRoute } from "@/shell/settingsNav";
 import {
@@ -39,7 +36,6 @@ import {
   useDeleteCustomAgent,
   type ManagedAgent,
 } from "@/hooks/useCustomAgents";
-import { CustomAgentConfigForm } from "./CustomAgentConfigForm";
 import { BackButton } from "./HarnessCatalog";
 import { ApiError } from "@/lib/sessionsApi";
 import { cn } from "@/lib/utils";

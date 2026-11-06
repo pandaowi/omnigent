@@ -7,9 +7,6 @@ import {
   Code2Icon,
   CompassIcon,
   SparklesIcon,
-  CpuIcon,
-  ServerIcon,
-  BotIcon,
   LayersIcon,
   VideoIcon,
 } from "lucide-react";
@@ -30,9 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { BRAIN_HARNESS_LABELS, useBrainHarnessLabels } from "@/lib/agentLabels";
+import { useBrainHarnessLabels } from "@/lib/agentLabels";
 import type { AgentBundleInput } from "@/lib/agentBundle";
 import { useHosts, useHostModelOptions } from "@/hooks/useHosts";
 
@@ -384,7 +380,6 @@ export function CreateAgentTeamDialog({
   isEditMode?: boolean;
 }) {
   const { data: hosts = [] } = useHosts();
-  const onlineHosts = hosts.filter((h) => h.status === "online");
 
   const [teamName, setTeamName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
@@ -557,7 +552,7 @@ ${roleDescriptions}
           description.trim() ||
           `Multi-role Agent Team (${roles.map((r) => r.roleName).join(", ")})`,
         harness: orchestratorHarness,
-        model: orchestratorModel.trim() || undefined,
+        model: orchestratorModel.trim() || "default",
         hostId: orchestratorHostId || undefined,
         instructions,
       };

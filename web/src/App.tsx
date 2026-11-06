@@ -258,7 +258,7 @@ function AppRoutes({ basename }: AppProps) {
           />
           <Route
             path={`${prefix}/agents`}
-            element={<Navigate to={`${prefix}/settings/custom-agents`} replace />}
+            element={<AppRedirect to={`${prefix}/settings/custom-agents`} />}
           />
           <Route path={basename ? `${prefix}/*` : "*"} element={<NotFoundPage />} />
         </Route>

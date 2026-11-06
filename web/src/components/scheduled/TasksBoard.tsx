@@ -10,7 +10,6 @@
 
 import { useMemo } from "react";
 import {
-  AlertCircleIcon,
   BotIcon,
   CheckCircle2Icon,
   CirclePlayIcon,
@@ -20,7 +19,6 @@ import {
   PauseIcon,
   PencilIcon,
   PlayIcon,
-  SparklesIcon,
   Trash2Icon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -112,7 +110,7 @@ export function TasksBoard({
         running.push(task);
       } else if (task.state === "paused") {
         paused.push(task);
-      } else if (task.lastRunStatus === "succeeded" || task.state === "completed") {
+      } else if (task.lastRunStatus === "succeeded") {
         completed.push(task);
       } else if (task.state === "active") {
         active.push(task);
@@ -213,12 +211,12 @@ function TaskKanbanCard({
   onClick?: () => void;
 }) {
   const scheduleText = useMemo(
-    () => describeSchedule(task.rrule, task.timezone),
-    [task.rrule, task.timezone],
+    () => describeSchedule(task.rrule),
+    [task.rrule],
   );
   const nextRunText = useMemo(
-    () => (task.state === "active" ? formatNextRunAt(task.rrule, task.timezone, now) : null),
-    [task.rrule, task.timezone, task.state, now],
+    () => (task.state === "active" ? formatNextRunAt(task.nextRunAt, now) : null),
+    [task.nextRunAt, task.state, now],
   );
 
   return (
@@ -306,7 +304,7 @@ function TaskKanbanCard({
       <div className="flex items-center justify-between gap-1.5 pt-1">
         <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted/60 border border-border/60 text-muted-foreground font-mono">
           <BotIcon className="size-3" />
-          {task.agent_name || "lead-agent"}
+          {task.agentId || "lead-agent"}
         </span>
 
         <div className="flex items-center gap-1">
