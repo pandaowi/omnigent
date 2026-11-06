@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import subprocess
 import sys
 
 # Any: tool schemas are heterogeneous dicts, AgentSpec.params
@@ -104,6 +105,21 @@ loop endlessly. If nothing works, say so.
 """
 
 
+def _is_bwrap_functional() -> bool:
+    if shutil.which("bwrap") is None:
+        return False
+    try:
+        proc = subprocess.run(
+            ["bwrap", "--ro-bind", "/", "/", "true"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
 def _ensure_default_sandbox_runnable() -> None:
     """
     Fail at spec-build time when the platform-default sandbox the
@@ -157,7 +173,7 @@ def build_researcher_spec(parent_spec: AgentSpec) -> AgentSpec:
       a gateway model loses its provider and hits the native router's
       ``Unknown provider`` (Layer 2).
     - An ``os_env`` block — registers ``sys_os_shell`` for one-shot
-      bash commands (curl, python3 one-liners). The previous
+    - bash commands (curl, python3 one-liners). The previous
       implementation used ``terminal_run``; that family was deleted
       per ``designs/OMNIGENT_TERMINAL_BRIDGE.md`` §3a in favor of
       ``sys_os_shell`` for one-shot cases.
@@ -181,21 +197,24 @@ def build_researcher_spec(parent_spec: AgentSpec) -> AgentSpec:
         sandbox cannot run on this host (missing ``bwrap`` on Linux,
         ``sandbox-exec`` on macOS).
     """
-    from omnigent.inner.datamodel import OSEnvSpec
+    from omnigent.inner.datamodel import OSEnvSandboxSpec, OSEnvSpec
 
     parent_os_env = parent_spec.os_env
-    if parent_os_env is None:
-        _ensure_default_sandbox_runnable()
-    # Inherit the parent's sandbox so the child is bound by the same
-    # filesystem and egress policy. ``sandbox`` carries
-    # ``egress_rules`` / ``egress_allow_private_destinations``, which
-    # is the only state ``create_os_environment`` reads to start the
-    # MITM egress proxy. ``cwd`` is intentionally left at the default
-    # (inherit the parent process working dir) — the one-shot curl /
-    # python invocations don't need a specific workspace.
+    child_sandbox = None
+    if parent_os_env is not None:
+        child_sandbox = parent_os_env.sandbox
+    else:
+        # Parent has no os_env. If default bwrap on Linux or seatbelt on macOS
+        # is missing or cannot create namespaces (e.g. inside unprivileged container),
+        # fallback to 'none' sandbox so web_fetch does not crash turn setup.
+        if sys.platform.startswith("linux") and not _is_bwrap_functional():
+            child_sandbox = OSEnvSandboxSpec(type="none")
+        elif sys.platform == "darwin" and shutil.which("sandbox-exec") is None:
+            child_sandbox = OSEnvSandboxSpec(type="none")
+
     child_os_env = OSEnvSpec(
         type=parent_os_env.type if parent_os_env is not None else "caller_process",
-        sandbox=parent_os_env.sandbox if parent_os_env is not None else None,
+        sandbox=child_sandbox,
     )
 
     # Inherit the parent leg's routing-relevant executor fields (harness, model,

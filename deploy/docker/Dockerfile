@@ -437,7 +437,7 @@ ENV PYTHONUNBUFFERED=1 \
 # curl + ca-certificates only — for the HEALTHCHECK and for outbound
 # HTTPS to LLM gateways / external services.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl ca-certificates \
+ && apt-get install -y --no-install-recommends curl ca-certificates bubblewrap \
  && rm -rf /var/lib/apt/lists/*
 
 # Preserve /build/ in the runtime stage — the venv's editable install
