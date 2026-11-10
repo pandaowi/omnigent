@@ -3752,7 +3752,13 @@ def create_app(
                 content={"user_id": None, "login_url": login_url},
             )
         if user_id is None:
-            return {"user_id": None, "is_admin": False}
+            return {
+                "user_id": None,
+                "is_admin": False,
+                "is_supervisor": False,
+                "primary_division": None,
+                "organizations": [],
+            }
         listed = admin_list.is_admin(user_id)
         flagged = permission_store is not None and permission_store.is_admin(user_id)
         if listed and not flagged and permission_store is not None:
@@ -3763,8 +3769,27 @@ def create_app(
                 await asyncio.to_thread(promote_if_listed, admin_list, permission_store, user_id)
             except Exception:
                 _logger.warning("Could not promote listed admin %s", user_id, exc_info=True)
-        # Still report the list, so admin chrome shows even if promotion failed.
-        return {"user_id": user_id, "is_admin": flagged or listed}
+
+        is_admin_user = bool(flagged or listed)
+        is_spv = False
+        primary_division = None
+        user_orgs = []
+        try:
+            from omnigent.server.organization_store import get_organization_store
+            org_store = get_organization_store()
+            is_spv = await asyncio.to_thread(org_store.is_user_supervisor, user_id)
+            user_orgs = await asyncio.to_thread(org_store.get_user_organizations, user_id)
+            primary_division = user_orgs[0]["name"] if user_orgs else None
+        except Exception as exc:
+            _logger.debug("Could not resolve organization metadata for %s: %s", user_id, exc)
+
+        return {
+            "user_id": user_id,
+            "is_admin": is_admin_user,
+            "is_supervisor": is_spv,
+            "primary_division": primary_division,
+            "organizations": user_orgs,
+        }
 
     app.include_router(
         create_sessions_router(

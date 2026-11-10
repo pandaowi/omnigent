@@ -576,16 +576,38 @@ class OrganizationStore:
 
             result = []
             for org in orgs:
-                member_count = s.execute(
-                    select(SqlOrganizationMember.user_id).where(SqlOrganizationMember.organization_id == org.id)
+                members = s.execute(
+                    select(SqlOrganizationMember).where(SqlOrganizationMember.organization_id == org.id)
                 ).scalars().all()
+                host_rows = s.execute(
+                    select(SqlOrganizationHostAssignment).where(
+                        SqlOrganizationHostAssignment.organization_id == org.id
+                    )
+                ).scalars().all()
+                assigned_hosts = [h.host_id for h in host_rows]
+                host_details = []
+                for h in host_rows:
+                    models = None
+                    if h.allowed_models:
+                        try:
+                            models = json.loads(h.allowed_models)
+                        except Exception:
+                            pass
+                    host_details.append({
+                        "host_id": h.host_id,
+                        "allowed_models": models,
+                    })
+                supervisors = [m.user_id for m in members if m.role == "supervisor"]
                 result.append({
                     "id": org.id,
                     "name": org.name,
                     "description": org.description,
                     "created_by": org.created_by,
                     "created_at": org.created_at,
-                    "member_count": len(member_count),
+                    "member_count": len(members),
+                    "supervisors": supervisors,
+                    "assigned_hosts": assigned_hosts,
+                    "assigned_host_details": host_details,
                 })
             return result
 
@@ -597,11 +619,25 @@ class OrganizationStore:
             members = s.execute(
                 select(SqlOrganizationMember).where(SqlOrganizationMember.organization_id == org_id)
             ).scalars().all()
-            assigned_hosts = s.execute(
-                select(SqlOrganizationHostAssignment.host_id).where(
+            host_rows = s.execute(
+                select(SqlOrganizationHostAssignment).where(
                     SqlOrganizationHostAssignment.organization_id == org_id
                 )
             ).scalars().all()
+            assigned_hosts = [h.host_id for h in host_rows]
+            host_details = []
+            for h in host_rows:
+                models = None
+                if h.allowed_models:
+                    try:
+                        models = json.loads(h.allowed_models)
+                    except Exception:
+                        pass
+                host_details.append({
+                    "host_id": h.host_id,
+                    "allowed_models": models,
+                })
+            supervisors = [m.user_id for m in members if m.role == "supervisor"]
             return {
                 "id": org.id,
                 "name": org.name,
@@ -612,7 +648,9 @@ class OrganizationStore:
                     {"user_id": m.user_id, "role": m.role, "created_at": m.created_at}
                     for m in members
                 ],
-                "assigned_hosts": list(assigned_hosts),
+                "supervisors": supervisors,
+                "assigned_hosts": assigned_hosts,
+                "assigned_host_details": host_details,
             }
 
     def delete_organization(self, org_id: str) -> bool:
@@ -792,6 +830,21 @@ class OrganizationStore:
                 )
             ).scalars().all()
             return [h.hex() if isinstance(h, (bytes, bytearray)) else str(h) for h in rows]
+
+    def get_org_host_details(self, org_id: str, host_id: str) -> dict[str, Any] | None:
+        ws_id = current_workspace_id()
+        with self._session() as s:
+            row = s.get(SqlOrganizationHostAssignment, (org_id, ws_id, host_id))
+            if row is None:
+                return None
+            return {
+                "organization_id": org_id,
+                "host_id": host_id,
+                "allowed_models": json.loads(row.allowed_models) if row.allowed_models else None,
+                "allowed_harnesses": json.loads(row.allowed_harnesses) if row.allowed_harnesses else None,
+                "harness": row.harness,
+                "default_model": row.default_model,
+            }
 
     def update_member_role(self, org_id: str, user_id: str, role: str) -> dict[str, Any] | None:
         with self._session() as s:

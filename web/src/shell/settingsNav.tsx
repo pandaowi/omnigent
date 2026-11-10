@@ -12,6 +12,7 @@ import {
   ArrowLeftIcon,
   BlocksIcon,
   BotIcon,
+  Building2Icon,
   DownloadIcon,
   GitBranchIcon,
   KeyboardIcon,
@@ -46,6 +47,7 @@ export type SettingsSectionId =
   | "shortcuts"
   | "import"
   | "account"
+  | "divisions"
   | "members"
   | "runners"
   | "policies"
@@ -65,6 +67,7 @@ const SECTION_IDS: readonly SettingsSectionId[] = [
   "shortcuts",
   "import",
   "account",
+  "divisions",
   "members",
   "runners",
   "policies",
@@ -152,20 +155,24 @@ export function settingsNavGroups(
       ],
     });
   }
-  // Admin: server-wide management, admin-only. Nested here as sub-categories
-  // (rather than links out of the Account section) so entering them stays
-  // inside /settings — the sidebar keeps the settings nav instead of snapping
-  // back to the conversation list. Gated on `isAdmin` alone (not
-  // `accountsEnabled`) so the surface also appears under OIDC/SSO, the one
-  // mode where there's otherwise no admin chrome at all. Members runs
-  // read-only under OIDC (no password actions); Policies is identical.
-  if (isAdmin || isSupervisor) {
+  // Admin: server-wide management, admin-only.
+  // Supervisor: division-scoped management (their division & members).
+  if (isAdmin) {
     const adminItems: SettingsNavItem[] = [];
-    if (!isSingleUser) adminItems.push({ id: "members", label: "Members", icon: UsersIcon });
-    if (!isSingleUser && isAdmin) adminItems.push({ id: "runners", label: "Runners & Teams", icon: ServerIcon });
-    if (isAdmin) adminItems.push({ id: "policies", label: "Policies", icon: ShieldCheckIcon });
-    if (!isSingleUser && isAdmin) adminItems.push({ id: "sharing", label: "Sharing", icon: Share2Icon });
-    groups.push({ title: isAdmin ? "Admin" : "Division Management", items: adminItems });
+    if (!isSingleUser) {
+      adminItems.push({ id: "divisions", label: "Divisions", icon: Building2Icon });
+      adminItems.push({ id: "members", label: "Members", icon: UsersIcon });
+      adminItems.push({ id: "runners", label: "Runners", icon: ServerIcon });
+    }
+    adminItems.push({ id: "policies", label: "Policies", icon: ShieldCheckIcon });
+    if (!isSingleUser) adminItems.push({ id: "sharing", label: "Sharing", icon: Share2Icon });
+    groups.push({ title: "Administration", items: adminItems });
+  } else if (isSupervisor && !isSingleUser) {
+    const spvItems: SettingsNavItem[] = [
+      { id: "divisions", label: "My Division", icon: Building2Icon },
+      { id: "members", label: "Members", icon: UsersIcon },
+    ];
+    groups.push({ title: "Division Management", items: spvItems });
   }
   groups.push({
     title: "Archived",
@@ -203,7 +210,7 @@ export function useSettingsRoute(): {
   const singleUser = isSingleUserMode(info);
   const isValidSection =
     (SECTION_IDS as readonly string[]).includes(next) &&
-    !(singleUser && (next === "members" || next === "sharing")) &&
+    !(singleUser && (next === "members" || next === "sharing" || next === "divisions" || next === "runners")) &&
     !(next === "custom-agents" && !customAgentsSettingsEnabled(info));
   const section = isValidSection ? (next as SettingsSectionId) : defaultSection;
   const harness = section === "harnesses" ? segments[idx + 2] : undefined;

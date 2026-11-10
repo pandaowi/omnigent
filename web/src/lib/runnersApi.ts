@@ -35,6 +35,20 @@ export interface OrganizationItem {
   created_by: string;
   created_at: number;
   member_count: number;
+  supervisors?: string[];
+  assigned_hosts?: string[];
+  assigned_host_details?: Array<{
+    host_id: string;
+    allowed_models: string[] | null;
+  }>;
+}
+
+export interface OrganizationDetail extends OrganizationItem {
+  members: Array<{ user_id: string; role: string; created_at: number }>;
+  assigned_host_details?: Array<{
+    host_id: string;
+    allowed_models: string[] | null;
+  }>;
 }
 
 export interface ReadyHarnessGroup {
@@ -394,6 +408,36 @@ export async function removeMemberFromOrganization(orgId: string, username: stri
     const res = await fetch(withBasePath(`/v1/organizations/${orgId}/members/${encodeURIComponent(username)}`), {
       method: "DELETE",
     });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchOrganizationDetails(orgId: string): Promise<OrganizationDetail | null> {
+  try {
+    const res = await fetch(withBasePath(`/v1/organizations/${encodeURIComponent(orgId)}`), { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function updateOrganizationMemberRole(
+  orgId: string,
+  userId: string,
+  role: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch(
+      withBasePath(`/v1/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(userId)}/role`),
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      },
+    );
     return res.ok;
   } catch {
     return false;

@@ -2708,6 +2708,7 @@ def create_hosts_router(
                 org_store.assign_org_to_host,
                 host_id=host_id,
                 organization_id=target_org.strip(),
+                allowed_models=body.get("allowed_models"),
             )
         else:
             raise HTTPException(status_code=400, detail="must provide user_id or organization_id")

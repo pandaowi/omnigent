@@ -91,6 +91,39 @@ class TestSupervisorRBACStore:
         consumed_again = org_store.consume_org_invite(token, "another_hire@example.com")
         assert consumed_again is None
 
+    def test_division_runner_and_model_allocation(self, org_store: OrganizationStore) -> None:
+        import uuid
+        test_host_id = uuid.uuid4().hex
+        org_store.create_organization(
+            name="Data Science",
+            created_by="admin@example.com",
+            org_id="org_ds",
+        )
+        org_store.add_org_member("org_ds", "spv_ds@example.com", role="supervisor")
+        org_store.add_org_member("org_ds", "scientist@example.com", role="member")
+
+        # Admin assigns runner with allowed models to division
+        assignment = org_store.assign_org_to_host(
+            host_id=test_host_id,
+            organization_id="org_ds",
+            allowed_models=["claude-3-5-sonnet", "gemini-1.5-pro"],
+        )
+        assert assignment["organization_id"] == "org_ds"
+        assert assignment["host_id"] == test_host_id
+
+        # Check host details retrieved for division
+        details = org_store.get_org_host_details("org_ds", test_host_id)
+        assert details is not None
+        assert details["allowed_models"] == ["claude-3-5-sonnet", "gemini-1.5-pro"]
+
+        # Check get_organization enrichment
+        org = org_store.get_organization("org_ds")
+        assert org is not None
+        assert test_host_id in org["assigned_hosts"]
+        assert "spv_ds@example.com" in org["supervisors"]
+        assert len(org["assigned_host_details"]) == 1
+        assert org["assigned_host_details"][0]["allowed_models"] == ["claude-3-5-sonnet", "gemini-1.5-pro"]
+
 
 class TestWorkspaceFolderIsolation:
     @pytest.mark.asyncio

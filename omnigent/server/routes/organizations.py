@@ -156,10 +156,21 @@ def create_organizations_router(
         return {"ok": True}
 
     @router.post("/organizations/{org_id}/hosts/{host_id}", status_code=201)
-    async def assign_host_to_organization(request: Request, org_id: str, host_id: str) -> dict[str, Any]:
+    async def assign_host_to_organization(
+        request: Request,
+        org_id: str,
+        host_id: str,
+        body: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Assign a host runner to an organization (Admin only)."""
         _require_admin(request)
-        assignment = await asyncio.to_thread(org_store.assign_org_to_host, host_id=host_id, organization_id=org_id)
+        allowed_models = body.get("allowed_models") if body else None
+        assignment = await asyncio.to_thread(
+            org_store.assign_org_to_host,
+            host_id=host_id,
+            organization_id=org_id,
+            allowed_models=allowed_models,
+        )
         return assignment
 
     @router.delete("/organizations/{org_id}/hosts/{host_id}")
@@ -227,10 +238,32 @@ def create_organizations_router(
             if body.host_id:
                 spv_org_ids = org_store.get_supervisor_org_ids(caller_id)
                 allowed_hosts = set()
+                host_org_id = None
                 for org_id in spv_org_ids:
-                    allowed_hosts.update(org_store.get_org_hosts(org_id))
+                    hosts = org_store.get_org_hosts(org_id)
+                    if body.host_id in hosts:
+                        allowed_hosts.add(body.host_id)
+                        host_org_id = org_id
                 if body.host_id not in allowed_hosts:
                     raise HTTPException(status_code=403, detail="host is not assigned to your division")
+
+                # Enforce model and harness subset from admin's division assignment
+                if host_org_id:
+                    host_details = org_store.get_org_host_details(host_org_id, body.host_id)
+                    if host_details:
+                        div_models = host_details.get("allowed_models")
+                        if div_models:
+                            div_models_set = set(div_models)
+                            if body.allowed_models and not set(body.allowed_models).issubset(div_models_set):
+                                raise HTTPException(
+                                    status_code=403,
+                                    detail="allowed models must be a subset of models assigned by admin to your division",
+                                )
+                            if body.default_model and body.default_model not in div_models_set:
+                                raise HTTPException(
+                                    status_code=403,
+                                    detail=f"default model '{body.default_model}' is not in the models assigned to your division",
+                                )
 
         result = await asyncio.to_thread(
             org_store.set_user_host_execution,

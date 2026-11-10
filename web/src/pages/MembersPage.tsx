@@ -87,6 +87,30 @@ export function MembersPage() {
   const [defaultModel, setDefaultModel] = useState<string>("");
   const [modelFilter, setModelFilter] = useState<Record<string, string>>({});
 
+  // Allowed hosts for supervisor (scoped to their division(s))
+  const displayHosts = useMemo(() => {
+    if (isAdmin) return hosts;
+    const allowed = new Set<string>();
+    for (const org of organizations) {
+      if (org.assigned_hosts) {
+        for (const hid of org.assigned_hosts) allowed.add(hid);
+      }
+    }
+    return hosts.filter((h) => allowed.has(h.host_id));
+  }, [isAdmin, hosts, organizations]);
+
+  // Allowed models for supervisor on selected host (scoped to what Admin assigned to the division)
+  const allowedModelsForSelectedHost = useMemo(() => {
+    if (isAdmin || !selectedHostId) return null;
+    for (const org of organizations) {
+      const found = org.assigned_host_details?.find((d) => d.host_id === selectedHostId);
+      if (found && found.allowed_models && found.allowed_models.length > 0) {
+        return new Set(found.allowed_models);
+      }
+    }
+    return null;
+  }, [isAdmin, selectedHostId, organizations]);
+
   // Dialogs
   const [showCreateInvite, setShowCreateInvite] = useState(false);
   const [inviteResult, setInviteResult] = useState<InviteCreated | null>(null);
@@ -139,7 +163,8 @@ export function MembersPage() {
   const openMemberExecution = async (u: AccountListEntry) => {
     setSelectedMember(u);
     const exec = executionMap[u.id];
-    const hostId = exec?.host_id || (hosts.length > 0 ? hosts[0].host_id : "");
+    const hostPool = isAdmin ? hosts : displayHosts;
+    const hostId = exec?.host_id || (hostPool.length > 0 ? hostPool[0].host_id : "");
     setSelectedHostId(hostId);
 
     const targetHost = hosts.find((h) => h.host_id === hostId);
@@ -598,7 +623,7 @@ export function MembersPage() {
                         className="flex h-11 w-full rounded-lg border border-input bg-background/80 px-3.5 py-2 text-sm shadow-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary appearance-none cursor-pointer"
                       >
                         <option value="">None (No Runner Assigned)</option>
-                        {hosts.map((h) => (
+                        {displayHosts.map((h) => (
                           <option key={h.host_id} value={h.host_id}>
                             {h.status === "online" ? "●" : "○"} {h.name} {h.status === "online" ? "— ONLINE" : "— OFFLINE"}
                           </option>
@@ -729,7 +754,12 @@ export function MembersPage() {
                                       <div className="flex items-center gap-2">
                                         <button
                                           type="button"
-                                          onClick={() => selectAllModelsForHarness(hNative, rh.models)}
+                                          onClick={() => {
+                                            const validModels = allowedModelsForSelectedHost
+                                              ? rh.models.filter((m) => allowedModelsForSelectedHost.has(m))
+                                              : rh.models;
+                                            selectAllModelsForHarness(hNative, validModels);
+                                          }}
                                           className="hover:text-primary hover:underline font-medium"
                                         >
                                           Select All
@@ -773,6 +803,7 @@ export function MembersPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-2.5 rounded-lg bg-background/60 border border-border/40 max-h-96 overflow-y-auto">
                                       {rh.models
                                         .filter((m) => {
+                                          if (allowedModelsForSelectedHost && !allowedModelsForSelectedHost.has(m)) return false;
                                           const query = (modelFilter[hNative] || "").trim().toLowerCase();
                                           return !query || m.toLowerCase().includes(query);
                                         })
