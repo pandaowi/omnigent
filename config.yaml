@@ -1,0 +1,7 @@
+branding:
+  app_name: "IPLabs Agent Platform"
+  heading: "What should we build?"
+  logo:
+    main: "logo.png"
+    loading: "logo.png"
+  powered_by: false
