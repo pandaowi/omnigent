@@ -127,7 +127,12 @@ import {
   fetchDatabricksStatus,
   type DatabricksConnectionStatus,
 } from "@/lib/databricksIntegration";
-import { getCurrentIsAdmin, resolveIdentity } from "@/lib/identity";
+import {
+  getCurrentIsAdmin,
+  getCurrentIsSupervisor,
+  getCurrentPrimaryDivision,
+  resolveIdentity,
+} from "@/lib/identity";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { useOmnigentAnalytics, useOmnigentPageView } from "@/lib/analytics";
 import {
@@ -2644,7 +2649,12 @@ function AccountSection() {
   const appName = useAppName();
   // Identity for display. Sourced from the mode-agnostic `/v1/me` probe so it
   // works under OIDC too (the accounts-only `/auth/me` doesn't exist there).
-  const [me, setMe] = useState<{ id: string; is_admin: boolean } | null | "unknown">("unknown");
+  const [me, setMe] = useState<{
+    id: string;
+    is_admin: boolean;
+    is_supervisor: boolean;
+    primary_division: string | null;
+  } | null | "unknown">("unknown");
   const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(null);
 
   // Change-password dialog state (lifted verbatim from the old AccountMenu).
@@ -2663,7 +2673,16 @@ function AccountSection() {
   useEffect(() => {
     void (async () => {
       const userId = await resolveIdentity();
-      setMe(userId === null ? null : { id: userId, is_admin: getCurrentIsAdmin() });
+      setMe(
+        userId === null
+          ? null
+          : {
+              id: userId,
+              is_admin: getCurrentIsAdmin(),
+              is_supervisor: getCurrentIsSupervisor(),
+              primary_division: getCurrentPrimaryDivision(),
+            },
+      );
     })();
   }, []);
 
@@ -2763,10 +2782,21 @@ function AccountSection() {
                     <span>Administrator</span>
                     <span className="text-[11px] font-normal opacity-80">(admin)</span>
                   </span>
+                ) : me.is_supervisor ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/15 px-2.5 py-0.5 text-xs font-semibold text-blue-400 shadow-sm">
+                    <ShieldCheckIcon className="size-3.5 text-blue-400" />
+                    <span>Supervisor</span>
+                    {me.primary_division && (
+                      <span className="text-[11px] font-medium opacity-90">({me.primary_division})</span>
+                    )}
+                  </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                     <UserIcon className="size-3.5" />
                     <span>Member</span>
+                    {me.primary_division && (
+                      <span className="text-[11px] font-normal opacity-80">({me.primary_division})</span>
+                    )}
                   </span>
                 )}
               </div>

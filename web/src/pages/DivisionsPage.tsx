@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useIsAdmin, useIsSupervisor } from "@/hooks/useIsAdmin";
+import { listUsers, type AccountListEntry } from "@/lib/accountsApi";
 import {
   type OrganizationItem,
   type OrganizationDetail,
@@ -59,6 +60,7 @@ export function DivisionsPage() {
 
   const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
   const [hosts, setHosts] = useState<HostItem[]>([]);
+  const [allUsers, setAllUsers] = useState<AccountListEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -84,12 +86,14 @@ export function DivisionsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [orgs, hostList] = await Promise.all([
+      const [orgs, hostList, usersList] = await Promise.all([
         fetchOrganizations(),
         fetchHostsList(),
+        listUsers(),
       ]);
       setOrganizations(orgs);
       setHosts(hostList);
+      setAllUsers(usersList ?? []);
     } catch {
       toast.error("Failed to load divisions");
     } finally {
@@ -533,33 +537,57 @@ export function DivisionsPage() {
           </DialogHeader>
 
           {/* Add member form (Admin or Supervisor) */}
-          <div className="border-y py-3 my-2 bg-muted/10 px-1 rounded flex flex-col sm:flex-row items-center gap-2">
-            <Input
-              placeholder="Username or email of user to add"
-              value={newMemberUsername}
-              onChange={(e) => setNewMemberUsername(e.target.value)}
-              className="text-xs h-8"
-            />
-            {isAdmin && (
-              <select
-                value={newMemberRole}
-                onChange={(e) => setNewMemberRole(e.target.value)}
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-              >
-                <option value="member">Role: Member</option>
-                <option value="supervisor">Role: Supervisor</option>
-              </select>
-            )}
-            <Button
-              size="sm"
-              className="h-8 text-xs whitespace-nowrap w-full sm:w-auto"
-              onClick={handleAddMember}
-              disabled={actionLoading || !newMemberUsername.trim()}
-            >
-              <PlusIcon className="mr-1.5 h-3.5 w-3.5" />
-              Add Member
-            </Button>
-          </div>
+          {(() => {
+            const existingMemberIds = new Set(selectedOrgDetail?.members.map((m) => m.user_id) || []);
+            const availableUsersToAdd = allUsers.filter((u) => !existingMemberIds.has(u.id));
+            return (
+              <div className="border-y py-3 my-2 bg-muted/10 px-1 rounded flex flex-col sm:flex-row items-center gap-2">
+                <div className="flex-1 w-full sm:w-auto">
+                  <select
+                    value={newMemberUsername}
+                    onChange={(e) => setNewMemberUsername(e.target.value)}
+                    className="w-full h-8 rounded-md border border-input bg-background px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    <option value="">
+                      {availableUsersToAdd.length === 0
+                        ? "-- All registered users are already in this division --"
+                        : "-- Select Member to Add --"}
+                    </option>
+                    {availableUsersToAdd.map((u) => {
+                      const divInfo =
+                        u.organizations && u.organizations.length > 0
+                          ? u.organizations.map((o) => o.name).join(", ")
+                          : "No division";
+                      return (
+                        <option key={u.id} value={u.id}>
+                          {u.id} {isAdmin ? `(${divInfo})` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                {isAdmin && (
+                  <select
+                    value={newMemberRole}
+                    onChange={(e) => setNewMemberRole(e.target.value)}
+                    className="h-8 rounded-md border bg-background px-2 text-xs"
+                  >
+                    <option value="member">Role: Member</option>
+                    <option value="supervisor">Role: Supervisor</option>
+                  </select>
+                )}
+                <Button
+                  size="sm"
+                  className="h-8 text-xs whitespace-nowrap w-full sm:w-auto"
+                  onClick={handleAddMember}
+                  disabled={actionLoading || !newMemberUsername.trim()}
+                >
+                  <PlusIcon className="mr-1.5 h-3.5 w-3.5" />
+                  Add Member
+                </Button>
+              </div>
+            );
+          })()}
 
           {/* Members list */}
           <div className="flex-1 overflow-y-auto space-y-2 py-1 pr-1">

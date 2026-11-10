@@ -225,3 +225,24 @@ class TestWorkspaceFolderIsolation:
                 is_create=False,
             )
         assert exc_info4.value.status_code == 403
+
+        # 7. Tilde subpath "~/my-folder" expands inside user workspace
+        tilde_subpath = await _resolve_and_enforce_user_workspace(
+            user_id="user1@example.com",
+            path="~/my-folder",
+            host_registry=mock_registry,  # type: ignore
+            conn=mock_conn,  # type: ignore
+            is_create=True,
+        )
+        assert tilde_subpath == "/home/coder/workspaces/it-department/user1/my-folder"
+
+        # 8. Supervisor can create/access within their division workspace
+        org_store.add_org_member("org_it", "supervisor1@example.com", role="supervisor")
+        spv_div_path = await _resolve_and_enforce_user_workspace(
+            user_id="supervisor1@example.com",
+            path="/home/coder/workspaces/it-department/shared-project",
+            host_registry=mock_registry,  # type: ignore
+            conn=mock_conn,  # type: ignore
+            is_create=True,
+        )
+        assert spv_div_path == "/home/coder/workspaces/it-department/shared-project"

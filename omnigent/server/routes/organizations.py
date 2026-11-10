@@ -198,10 +198,11 @@ def create_organizations_router(
             filtered = all_assignments
         else:
             managed_user_ids = set(org_store.get_supervisor_managed_users(caller_id))
-            filtered = [
-                a for a in all_assignments
-                if a.get("user_id") in managed_user_ids or a.get("user_id") == caller_id
-            ]
+            filtered = {
+                uid: setting
+                for uid, setting in all_assignments.items()
+                if uid in managed_user_ids or uid == caller_id
+            }
         return {"overview": filtered, "users": filtered}
 
     @router.get("/users/me/execution")

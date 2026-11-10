@@ -832,7 +832,6 @@ async def _resolve_and_enforce_user_workspace(
         else "general"
     )
     user_slug = re.sub(r"[^a-zA-Z0-9_-]", "-", user_id.split("@")[0]).strip("-").lower()
-    rel_user_root = f"~/workspaces/{division_slug}/{user_slug}"
 
     try:
         stat = await _ask_host_stat(
@@ -844,31 +843,54 @@ async def _resolve_and_enforce_user_workspace(
     except Exception:
         canonical_home = "/home/coder"
 
-    canonical_user_root = f"{canonical_home}/workspaces/{division_slug}/{user_slug}"
+    canonical_division_root = os.path.normpath(f"{canonical_home}/workspaces/{division_slug}")
+    canonical_user_root = os.path.normpath(f"{canonical_home}/workspaces/{division_slug}/{user_slug}")
 
+    # Ensure user workspace root exists on the host
     try:
         await _proxy_create_dir(
             host_registry=host_registry,
             host_conn=conn,
-            path=rel_user_root,
+            path=canonical_user_root,
         )
     except Exception as exc:
-        _logger.debug("Auto-creation of user workspace root %s note: %s", rel_user_root, exc)
+        _logger.debug("Auto-creation of user workspace root %s note: %s", canonical_user_root, exc)
 
-    if path == "~":
+    if not path or path == "~":
         return canonical_user_root
 
-    norm_path = os.path.normpath(
-        path.replace("~", canonical_home, 1) if path.startswith("~") else path
-    )
-    norm_user_root = os.path.normpath(canonical_user_root)
-    boundary = norm_user_root if norm_user_root.endswith("/") else norm_user_root + "/"
+    # For non-admin, "~" represents their user workspace root, not the runner root home
+    if path.startswith("~"):
+        resolved_path = path.replace("~", canonical_user_root, 1)
+    elif not path.startswith("/"):
+        resolved_path = f"{canonical_user_root}/{path}"
+    else:
+        resolved_path = path
 
-    if norm_path != norm_user_root and not norm_path.startswith(boundary):
+    norm_path = os.path.normpath(resolved_path)
+    boundary_user = canonical_user_root if canonical_user_root.endswith("/") else canonical_user_root + "/"
+    boundary_div = canonical_division_root if canonical_division_root.endswith("/") else canonical_division_root + "/"
+
+    is_supervisor = org_store.is_user_supervisor(user_id)
+
+    # Supervisors can access/create anywhere in their division or their user workspace
+    # Regular members are strictly restricted to their user workspace
+    if is_supervisor:
+        allowed = (
+            norm_path == canonical_division_root
+            or norm_path.startswith(boundary_div)
+            or norm_path == canonical_user_root
+            or norm_path.startswith(boundary_user)
+        )
+    else:
+        allowed = norm_path == canonical_user_root or norm_path.startswith(boundary_user)
+
+    if not allowed:
         action = "create directory" if is_create else "access folder"
+        restricted_boundary = canonical_division_root if is_supervisor else canonical_user_root
         raise HTTPException(
             status_code=403,
-            detail=f"Forbidden: {action} is restricted to your division and user workspace ({norm_user_root})",
+            detail=f"Forbidden: {action} is restricted to your division workspace ({restricted_boundary})",
         )
 
     return norm_path
@@ -1337,7 +1359,7 @@ def create_hosts_router(
         # Enforce division and user folder isolation for non-admin users
         is_admin_caller = permission_store.is_admin(user_id) if (permission_store and user_id) else False
         if not is_admin_caller and user_id and target.conv.user_id == user_id:
-            await _resolve_and_enforce_user_workspace(
+            body.workspace = await _resolve_and_enforce_user_workspace(
                 user_id=user_id,
                 path=body.workspace,
                 host_registry=host_registry,

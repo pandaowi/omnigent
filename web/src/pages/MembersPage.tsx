@@ -143,11 +143,11 @@ export function MembersPage() {
         fetchExecutionOverview(),
         fetchOrganizations(),
       ]);
-      setUsers(data);
-      setHosts(hostsData);
-      setExecutionMap(execOverview);
-      setOrganizations(orgsData);
-      if (orgsData.length > 0) {
+      setUsers(data ?? []);
+      setHosts(hostsData ?? []);
+      setExecutionMap(execOverview ?? {});
+      setOrganizations(orgsData ?? []);
+      if (orgsData && orgsData.length > 0) {
         setInviteOrgId((prev) => prev || orgsData[0].id);
       }
     } catch (err) {
