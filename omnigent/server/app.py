@@ -4990,10 +4990,18 @@ def create_app(
             tags=["hosts"],
         )
         from omnigent.server.routes.organizations import create_organizations_router
+        org_db_uri = None
+        if permission_store and hasattr(permission_store, "storage_location"):
+            org_db_uri = permission_store.storage_location
+        elif account_store and hasattr(account_store, "storage_location"):
+            org_db_uri = account_store.storage_location
+        elif host_store and hasattr(host_store, "storage_location"):
+            org_db_uri = host_store.storage_location
         app.include_router(
             create_organizations_router(
                 auth_provider=auth_provider,
                 permission_store=permission_store,
+                db_uri=org_db_uri,
             ),
             prefix="/v1",
             tags=["organizations"],

@@ -807,6 +807,73 @@ async def _resolve_agent_harness(
     return canonicalize_harness(loaded.spec.executor.harness_kind)
 
 
+async def _resolve_and_enforce_user_workspace(
+    *,
+    user_id: str,
+    path: str,
+    host_registry: HostRegistry,
+    conn: HostConnection,
+    is_create: bool = False,
+) -> str:
+    """Enforce workspace folder isolation for non-admin users.
+
+    Supervisors and Members are jailed to their allocated division
+    and user directory: ~/workspaces/{division}/{username}
+    """
+    import re
+    from omnigent.server.organization_store import get_organization_store
+    from omnigent.server.routes._workspace_validation import _ask_host_stat
+
+    org_store = get_organization_store()
+    user_orgs = org_store.get_user_organizations(user_id)
+    division_slug = (
+        re.sub(r"[^a-zA-Z0-9_-]", "-", user_orgs[0]["name"]).strip("-").lower()
+        if user_orgs
+        else "general"
+    )
+    user_slug = re.sub(r"[^a-zA-Z0-9_-]", "-", user_id.split("@")[0]).strip("-").lower()
+    rel_user_root = f"~/workspaces/{division_slug}/{user_slug}"
+
+    try:
+        stat = await _ask_host_stat(
+            host_registry=host_registry,
+            host_conn=conn,
+            path="~",
+        )
+        canonical_home = (stat.get("canonical_path") or "/home/coder").rstrip("/")
+    except Exception:
+        canonical_home = "/home/coder"
+
+    canonical_user_root = f"{canonical_home}/workspaces/{division_slug}/{user_slug}"
+
+    try:
+        await _proxy_create_dir(
+            host_registry=host_registry,
+            host_conn=conn,
+            path=rel_user_root,
+        )
+    except Exception as exc:
+        _logger.debug("Auto-creation of user workspace root %s note: %s", rel_user_root, exc)
+
+    if path == "~":
+        return canonical_user_root
+
+    norm_path = os.path.normpath(
+        path.replace("~", canonical_home, 1) if path.startswith("~") else path
+    )
+    norm_user_root = os.path.normpath(canonical_user_root)
+    boundary = norm_user_root if norm_user_root.endswith("/") else norm_user_root + "/"
+
+    if norm_path != norm_user_root and not norm_path.startswith(boundary):
+        action = "create directory" if is_create else "access folder"
+        raise HTTPException(
+            status_code=403,
+            detail=f"Forbidden: {action} is restricted to your division and user workspace ({norm_user_root})",
+        )
+
+    return norm_path
+
+
 def create_hosts_router(
     host_registry: HostRegistry,
     host_store: HostStore,
@@ -1266,6 +1333,17 @@ def create_hosts_router(
             )
         set_current_session_id(body.session_id)
         add_audit_attrs(session_id=body.session_id, host_id=host_id)
+
+        # Enforce division and user folder isolation for non-admin users
+        is_admin_caller = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        if not is_admin_caller and user_id and target.conv.user_id == user_id:
+            await _resolve_and_enforce_user_workspace(
+                user_id=user_id,
+                path=body.workspace,
+                host_registry=host_registry,
+                conn=conn,
+                is_create=False,
+            )
 
         # W6: validate the requested workspace against the agent's
         # os_env.cwd sandbox boundary BEFORE binding — the same check
@@ -1769,7 +1847,8 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        _check_host_owner(host, user_id)
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        _check_host_owner(host, user_id, is_admin=is_admin)
 
         if "\x00" in path:
             raise HTTPException(
@@ -1780,6 +1859,15 @@ def create_hosts_router(
         conn = host_registry.get(host.host_id)
         if conn is None:
             raise _host_absent_error(host)
+
+        if not is_admin and user_id:
+            path = await _resolve_and_enforce_user_workspace(
+                user_id=user_id,
+                path=path,
+                host_registry=host_registry,
+                conn=conn,
+                is_create=False,
+            )
 
         result = await _proxy_list_dir(
             host_registry=host_registry,
@@ -1849,7 +1937,8 @@ def create_hosts_router(
         host = await asyncio.to_thread(host_store.get_host, host_id)
         if host is None:
             raise HTTPException(status_code=404, detail="host not found")
-        _check_host_owner(host, user_id)
+        is_admin = permission_store.is_admin(user_id) if (permission_store and user_id) else False
+        _check_host_owner(host, user_id, is_admin=is_admin)
 
         path = body.path
         if not path.strip():
@@ -1870,6 +1959,15 @@ def create_hosts_router(
         conn = host_registry.get(host.host_id)
         if conn is None:
             raise _host_absent_error(host)
+
+        if not is_admin and user_id:
+            path = await _resolve_and_enforce_user_workspace(
+                user_id=user_id,
+                path=path,
+                host_registry=host_registry,
+                conn=conn,
+                is_create=True,
+            )
 
         result = await _proxy_create_dir(
             host_registry=host_registry,

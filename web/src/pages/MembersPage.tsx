@@ -51,16 +51,26 @@ import {
   fetchExecutionOverview,
   updateUserExecution,
   fetchRunnerReadyHarnesses,
+  fetchOrganizations,
+  type OrganizationItem,
 } from "@/lib/runnersApi";
 import { resolveIdentity } from "@/lib/identity";
+import { useIsAdmin, useIsSupervisor } from "@/hooks/useIsAdmin";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { withBasePath } from "@/lib/basePath";
 export function MembersPage() {
   const info = useServerInfo();
+  const isAdmin = useIsAdmin();
+  const isSupervisor = useIsSupervisor();
   const manageable = info !== "loading" && info.accounts_enabled;
   const [meId, setMeId] = useState<string | null>(null);
   const [users, setUsers] = useState<AccountListEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Organizations & Divisions
+  const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
+  const [inviteOrgId, setInviteOrgId] = useState<string>("");
+  const [inviteRole, setInviteRole] = useState<string>("member");
 
   // Execution overview, hosts & ready runtimes
   const [hosts, setHosts] = useState<HostItem[]>([]);
@@ -99,18 +109,23 @@ export function MembersPage() {
     };
   }, []);
 
-  // Refresh users and execution assignments
+  // Refresh users, execution assignments, and organizations
   const refreshUsers = useCallback(async () => {
     setLoadError(null);
     try {
-      const [data, hostsData, execOverview] = await Promise.all([
+      const [data, hostsData, execOverview, orgsData] = await Promise.all([
         listUsers(),
         fetchHostsList(),
         fetchExecutionOverview(),
+        fetchOrganizations(),
       ]);
       setUsers(data);
       setHosts(hostsData);
       setExecutionMap(execOverview);
+      setOrganizations(orgsData);
+      if (orgsData.length > 0) {
+        setInviteOrgId((prev) => prev || orgsData[0].id);
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
     }
@@ -403,11 +418,15 @@ export function MembersPage() {
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const isAdmin = formData.get("is_admin") === "on";
+    const grantAdmin = isAdmin && formData.get("is_admin") === "on";
 
     setPendingAction(true);
     try {
-      const result = await createInvite(isAdmin);
+      const result = await createInvite(
+        grantAdmin,
+        inviteOrgId || null,
+        grantAdmin ? "admin" : inviteRole,
+      );
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -875,7 +894,7 @@ export function MembersPage() {
           <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wider border-b">
             <tr>
               <th className="px-4 py-3 text-left font-semibold">Member</th>
-              <th className="px-3 py-3 text-left font-semibold">Role</th>
+              <th className="px-3 py-3 text-left font-semibold">Role & Divisi</th>
               <th className="px-3 py-3 text-left font-semibold">Runtime / Runner</th>
               <th className="px-3 py-3 text-left font-semibold">Model Policy</th>
               <th className="px-3 py-3 text-left font-semibold">Last Login</th>
@@ -938,13 +957,36 @@ export function MembersPage() {
                       </div>
                     </td>
 
-                    {/* Role */}
+                    {/* Role & Divisi */}
                     <td className="px-3 py-3 align-middle">
-                      {u.is_admin ? (
-                        <Badge className="text-xs">Admin</Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">Member</Badge>
-                      )}
+                      <div className="flex flex-col gap-1 items-start">
+                        {u.is_admin ? (
+                          <Badge className="bg-purple-900/40 text-purple-300 border-purple-500/50 text-xs font-semibold">
+                            Global Admin
+                          </Badge>
+                        ) : u.organizations && u.organizations.length > 0 ? (
+                          u.organizations.map((org) => {
+                            const isSpv = org.role === "supervisor" || org.role === "admin" || org.role === "lead";
+                            return (
+                              <Badge
+                                key={org.id}
+                                variant={isSpv ? "outline" : "secondary"}
+                                className={`text-xs ${
+                                  isSpv
+                                    ? "border-blue-500/60 text-blue-400 bg-blue-950/40 font-medium"
+                                    : ""
+                                }`}
+                              >
+                                {org.name} ({isSpv ? "Supervisor" : "Member"})
+                              </Badge>
+                            );
+                          })
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            Member
+                          </Badge>
+                        )}
+                      </div>
                     </td>
 
                     {/* Runtime / Runner Column */}
@@ -1010,16 +1052,18 @@ export function MembersPage() {
 
                         {manageable && (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => setResettingUser(u)}
-                              title="Reset Password"
-                            >
-                              <KeyRoundIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                            </Button>
-                            {u.id !== meId && (
+                            {(!isSupervisor || !u.is_admin) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setResettingUser(u)}
+                                title="Reset Password"
+                              >
+                                <KeyRoundIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                              </Button>
+                            )}
+                            {u.id !== meId && (!isSupervisor || !u.is_admin) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1095,12 +1139,60 @@ export function MembersPage() {
               <p className="text-sm text-muted-foreground">
                 Generate an invite link for a new member. The recipient will choose their own username and password upon registration.
               </p>
-              <div className="flex items-center gap-2 pt-1">
-                <input type="checkbox" id="is_admin" name="is_admin" className="rounded border-input" />
-                <label htmlFor="is_admin" className="text-sm cursor-pointer select-none">
-                  Grant Administrator privileges
+
+              {/* Division / Organization selector */}
+              {organizations.length > 0 && (
+                <div className="space-y-1.5">
+                  <label htmlFor="invite_org" className="text-xs font-semibold text-foreground">
+                    Divisi / Organization:
+                  </label>
+                  <select
+                    id="invite_org"
+                    value={inviteOrgId}
+                    onChange={(e) => setInviteOrgId(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {isAdmin && <option value="">(None / General)</option>}
+                    {organizations.map((org) => (
+                      <option key={org.id} value={org.id}>
+                        {org.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Role selector */}
+              <div className="space-y-1.5">
+                <label htmlFor="invite_role" className="text-xs font-semibold text-foreground">
+                  Role:
                 </label>
+                <select
+                  id="invite_role"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  disabled={!isAdmin}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+                >
+                  <option value="member">Member (Staff Divisi)</option>
+                  {isAdmin && <option value="supervisor">Supervisor (Kepala Divisi)</option>}
+                </select>
+                {!isAdmin && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Supervisors can only invite members to their assigned division.
+                  </p>
+                )}
               </div>
+
+              {isAdmin && (
+                <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+                  <input type="checkbox" id="is_admin" name="is_admin" className="rounded border-input" />
+                  <label htmlFor="is_admin" className="text-sm cursor-pointer select-none">
+                    Grant Global Administrator privileges
+                  </label>
+                </div>
+              )}
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowCreateInvite(false)}>
                   Cancel

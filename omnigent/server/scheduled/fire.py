@@ -1046,7 +1046,12 @@ async def _resolve_effective_task(deps: FireDeps, task: ScheduledTask) -> Schedu
         # already-resolved absolute path (many consumers do plain ``Path`` math /
         # ``startswith('/')`` on it without expanding ``~``), so a stat round-trip
         # here mirrors how the normal session-create path stores canonical_path.
-        workspace = await _resolve_default_workspace(deps, host_id)
+        workspace = await _resolve_default_workspace(
+            deps,
+            host_id,
+            user_id=task.owner_user_id,
+            task_name=task.name,
+        )
     if host_id is task.host_id and workspace is task.workspace:
         return task
     return replace(task, host_id=host_id, workspace=workspace)
@@ -1088,7 +1093,12 @@ async def _resolve_owner_host(deps: FireDeps, task: ScheduledTask) -> str:
     )
 
 
-async def _resolve_default_workspace(deps: FireDeps, host_id: str) -> str:
+async def _resolve_default_workspace(
+    deps: FireDeps,
+    host_id: str,
+    user_id: str | None = None,
+    task_name: str | None = None,
+) -> str:
     """Canonicalize the host's home directory to an absolute realpath.
 
     Sends a ``host.stat`` for :data:`_DEFAULT_WORKSPACE` (``~``) to the resolved
@@ -1130,6 +1140,30 @@ async def _resolve_default_workspace(deps: FireDeps, host_id: str) -> str:
             f"host {host_id!r} did not resolve a home directory for the default workspace",
             error_code="default_workspace_unresolved",
         )
+
+    # Division & User namespace isolation for automated projects
+    if user_id:
+        try:
+            import re
+            from omnigent.server.organization_store import get_organization_store
+            org_store = get_organization_store()
+            user_orgs = org_store.get_user_organizations(user_id)
+            division_slug = (
+                re.sub(r"[^a-zA-Z0-9_-]", "-", user_orgs[0]["name"]).strip("-").lower()
+                if user_orgs
+                else "general"
+            )
+            user_slug = re.sub(r"[^a-zA-Z0-9_-]", "-", user_id.split("@")[0]).strip("-").lower()
+            task_slug = (
+                re.sub(r"[^a-zA-Z0-9_-]", "-", task_name).strip("-").lower()
+                if task_name
+                else "automasi"
+            )
+            structured_path = f"{canonical.rstrip('/')}/workspaces/{division_slug}/{user_slug}/{task_slug}"
+            return structured_path
+        except Exception as e:
+            _logger.warning("Could not structure default workspace path for %s: %s", user_id, e)
+
     return canonical
 
 

@@ -307,6 +307,9 @@ function isBodyHostKeyedRequest(url: string, body: BodyInit | null | undefined):
 // auth mode — including OIDC/SSO, where the accounts-only `/auth/me`
 // endpoint doesn't exist. Defaults false until the probe resolves.
 let currentIsAdmin = false;
+let currentIsSupervisor = false;
+let currentPrimaryDivision: string | null = null;
+let currentOrganizations: Array<{ id: string; name: string; role: string }> = [];
 let identityResolved = false;
 let identityPromise: Promise<string | null> | null = null;
 // A `/v1/me` that fails in transit says nothing about the viewer, so it is
@@ -423,9 +426,15 @@ async function probeIdentity(): Promise<boolean> {
       const data = (await res.json()) as {
         user_id: string | null;
         is_admin?: boolean;
+        is_supervisor?: boolean;
+        primary_division?: string | null;
+        organizations?: Array<{ id: string; name: string; role: string }>;
       };
       currentUserId = data.user_id;
       currentIsAdmin = data.is_admin ?? false;
+      currentIsSupervisor = data.is_supervisor ?? false;
+      currentPrimaryDivision = data.primary_division ?? null;
+      currentOrganizations = data.organizations ?? [];
       return true;
     }
     return !isTransientIdentityStatus(res.status);
@@ -512,6 +521,21 @@ export function getCurrentUserId(): string | null {
  */
 export function getCurrentIsAdmin(): boolean {
   return currentIsAdmin;
+}
+
+/** Whether the current user is a division supervisor. */
+export function getCurrentIsSupervisor(): boolean {
+  return currentIsSupervisor;
+}
+
+/** Current user's primary division name, if assigned. */
+export function getCurrentPrimaryDivision(): string | null {
+  return currentPrimaryDivision;
+}
+
+/** Organizations and roles the current user belongs to. */
+export function getCurrentOrganizations(): Array<{ id: string; name: string; role: string }> {
+  return currentOrganizations;
 }
 
 /**

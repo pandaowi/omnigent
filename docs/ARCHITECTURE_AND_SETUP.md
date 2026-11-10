@@ -266,7 +266,98 @@ resource "coder_agent" "main" {
 
 ---
 
-## 5. Ringkasan Perintah Penting
+## 8. Multi-Divisi & Arsitektur 3-Tier RBAC (Global Admin, Supervisor, Member)
+
+Untuk mendukung organisasi dengan banyak divisi (misal: IT/Dev, Finance, HR, Operations), sistem menggunakan hierarki 3-Tier Role-Based Access Control (RBAC):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. GLOBAL ADMIN (Super Administrator / IT Head)             │
+│    - Akses penuh ke seluruh sistem                          │
+│    - Kelola Master Data Divisi / Organisasi                 │
+│    - Menunjuk Supervisor untuk tiap Divisi                  │
+│    - Alokasi runner host & whitelist model ke tiap Divisi   │
+│    - Full Filesystem Bypass (bisa inspect semua folder)     │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Menugaskan & Menjaga
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. SUPERVISOR (Division Head / Kepala Divisi)               │
+│    - Bertanggung jawab HANYA pada divisinya sendiri         │
+│    - Invite Member baru (terkunci otomatis ke divisinya)    │
+│    - Mengatur runner & model dari jatah divisinya           │
+│    - Reset password & remove member di divisinya            │
+│    - KEAMANAN (Guardrails):                                 │
+│      * TIDAK BISA melihat / memodifikasi Global Admin       │
+│      * TIDAK BISA mengakses divisi lain atau runner lain    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Mengawasi
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. MEMBER (Staff Divisi)                                    │
+│    - Menjalankan chat, task, & otomasi pada runner divisinya│
+│    - Terkunci (jailed) pada folder pribadinya               │
+│      /home/coder/workspaces/{divisi}/{username}/...         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Struktur Folder Workspace Terisolasi:
+Agar project otomasi dan coding tidak bertumpuk di `/home/coder`:
+```text
+/home/coder/workspaces/
+  ├── it-development/
+  │   ├── tantowi/
+  │   │   ├── automasi-backup-db/
+  │   │   └── erpnext-custom-app/
+  │   └── bobby/
+  │       └── payment-gateway/
+  ├── finance/
+  │   └── sarah/
+  │       └── automasi-rekap-invoice/
+  └── hr/
+      └── dewi/
+          └── automasi-payroll/
+```
+
+---
+
+## 9. [TODO / ROADMAP] Coder Shared Storage Volume Mount (`/data/omnigent-workspaces`)
+
+> 📌 **TODO Kebutuhan Mendatang:**  
+> Ketika banyak runner aktif (misal runner `demo` untuk Codex, runner `demo2` untuk Antigravity, dan runner `frappe-dev` untuk OpenCode), container Coder yang berbeda memiliki filesystem lokal terpisah. Agar folder `/home/coder/workspaces` tersinkronisasi 100% secara real-time di semua runner, terapkan shared volume mount di server fisik Coder.
+
+### Langkah Setup pada Host Server Fisik (`192.168.7.101`):
+1. **Buat direktori bersama di host fisik:**
+   ```bash
+   sudo mkdir -p /data/omnigent-workspaces
+   # Pastikan UID 1000 (user 'coder' bawaan Coder container) memiliki permission write
+   sudo chown -R 1000:1000 /data/omnigent-workspaces
+   sudo chmod -R 775 /data/omnigent-workspaces
+   ```
+
+2. **Perbarui Template Coder (`main.tf`):**
+   Di dashboard Coder (`Templates -> Edit main.tf`), tambahkan blok `volumes` ke resource `docker_container.workspace`:
+   ```hcl
+   resource "docker_container" "workspace" {
+     name  = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+     image = "codercom/enterprise-base:ubuntu"
+     
+     # Shared storage volume mount antar runner
+     volumes {
+       container_path = "/home/coder/workspaces"
+       host_path      = "/data/omnigent-workspaces"
+       read_write     = true
+     }
+   }
+   ```
+
+3. **Publish Template & Update Workspace:**
+   * Simpan dan publish versi template baru di Coder.
+   * Pada workspace yang ada, klik tombol **"Update"** untuk me-restart container dengan volume baru. Data `/home/coder` lama tetap aman karena tersimpan di persistent disk Coder.
+
+---
+
+## 10. Ringkasan Perintah Penting
 
 | Tindakan | Perintah |
 |---|---|

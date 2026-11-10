@@ -10,7 +10,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import BlobGraphic from "./BlobGraphic";
-import omnigentLogo from "@/assets/omnigent-starfish-icon.png";
+import omnigentLogo from "@/assets/omnigent-logo.png";
 import "./AnimatedOmnigentPanel.css";
 
 // Fixed card width + logo size — the flow only varies height/panelHeight per

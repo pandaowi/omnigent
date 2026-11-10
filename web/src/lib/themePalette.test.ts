@@ -183,8 +183,8 @@ describe("themePalette", () => {
     for (const palette of PALETTES) {
       expect(palette.tokens.dark.shellBackground, palette.label).toBe("var(--background)");
     }
-    expect(PALETTES[0].tokens.dark.background).toBe("#0e0b19");
-    expect(PALETTES[0].tokens.dark.sidebar).toBe("#0e0b19");
+    expect(PALETTES[0].tokens.dark.background).toBe("#061212");
+    expect(PALETTES[0].tokens.dark.sidebar).toBe("#061212");
   });
 
   it("uses white as the base for Omnigent dark form controls", () => {
@@ -192,10 +192,10 @@ describe("themePalette", () => {
     expect(omni.tokens.dark.input).toBe("rgb(255 255 255 / 15%)");
   });
 
-  it("uses the Omnigent brand pink as the primary accent in both modes", () => {
+  it("uses the Omnigent brand amber as the primary accent in both modes", () => {
     const omni = PALETTES.find((palette) => palette.id === "omni")!;
-    expect(omni.tokens.light.primary).toBe("#df3c85");
-    expect(omni.tokens.dark.primary).toBe("#df3c85");
+    expect(omni.tokens.light.primary).toBe("#ffaa07");
+    expect(omni.tokens.dark.primary).toBe("#ffaa07");
   });
 
   it.each(PALETTES)("keeps $label links readable on page and table surfaces", (palette) => {

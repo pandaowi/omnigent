@@ -122,9 +122,14 @@ class InviteRequest(BaseModel):
         with admin rights. Defaults False; only admins can mint
         invites at all (route-level guard), and admin invites are
         a deliberate sub-case.
+    :param organization_id: Optional division/organization id to automatically
+        enroll the invitee into upon registration.
+    :param role: Role within the division ("member" or "supervisor").
     """
 
     is_admin: bool = False
+    organization_id: str | None = None
+    role: str = "member"
 
 
 class ChangePasswordRequest(BaseModel):
@@ -406,11 +411,21 @@ def create_accounts_auth_router(
             # Cookie validated but user row gone — admin deleted them
             # mid-session. Surface as 401 so the frontend re-logs in.
             return JSONResponse(status_code=401, content={"error": "user no longer exists"})
+
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        user_orgs = org_store.get_user_organizations(user.id)
+        is_spv = org_store.is_user_supervisor(user.id)
+        primary_division = user_orgs[0]["name"] if user_orgs else None
+
         return JSONResponse(
             status_code=200,
             content={
                 "id": user.id,
                 "is_admin": user.is_admin,
+                "is_supervisor": is_spv,
+                "primary_division": primary_division,
+                "organizations": user_orgs,
                 "created_at": user.created_at,
                 "last_login_at": user.last_login_at,
             },
@@ -420,10 +435,28 @@ def create_accounts_auth_router(
 
     @router.post("/invite")
     async def invite(request: Request, body: InviteRequest) -> Response:
-        """Mint a single-use invite URL (admin only)."""
-        admin_id = auth_provider.get_user_id(request)
-        if admin_id is None or not account_store.is_admin(admin_id):
-            return JSONResponse(status_code=403, content={"error": "admin only"})
+        """Mint a single-use invite URL (Global Admin or Supervisor)."""
+        caller_id = auth_provider.get_user_id(request)
+        if caller_id is None:
+            return JSONResponse(status_code=401, content={"error": "not authenticated"})
+
+        is_admin = account_store.is_admin(caller_id)
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        is_spv = org_store.is_user_supervisor(caller_id)
+
+        if not is_admin and not is_spv:
+            return JSONResponse(status_code=403, content={"error": "admin or supervisor privileges required"})
+
+        # Guardrails for Supervisor:
+        if not is_admin:
+            if body.is_admin:
+                return JSONResponse(status_code=403, content={"error": "supervisors cannot grant administrator privileges"})
+            supervisor_org_ids = org_store.get_supervisor_org_ids(caller_id)
+            if not body.organization_id or body.organization_id not in supervisor_org_ids:
+                return JSONResponse(status_code=403, content={"error": "supervisors can only invite to their assigned division"})
+            if body.role not in ("member",):
+                return JSONResponse(status_code=403, content={"error": "supervisors can only invite members"})
 
         token_id = secrets.token_urlsafe(32)
         now = int(time.time())
@@ -431,20 +464,29 @@ def create_accounts_auth_router(
             token_id,
             kind="invite",
             user_id=None,
-            created_by=admin_id,
+            created_by=caller_id,
             created_at=now,
             expires_at=now + config.invite_ttl_seconds,
-            invited_is_admin=body.is_admin,
+            invited_is_admin=body.is_admin if is_admin else False,
         )
-        # The full register URL is built off the configured base
-        # URL so admins can share it directly. Including the token
-        # in a query param (not a fragment) means the URL works in
-        # the simplest case: paste into any client.
+
+        effective_org_id = body.organization_id
+        effective_role = body.role if is_admin else "member"
+        if effective_org_id:
+            org_store.create_org_invite(
+                token_id=token_id,
+                organization_id=effective_org_id,
+                role=effective_role,
+                created_by=caller_id,
+            )
+
         register_url = f"{config.base_url}/register?invite={token_id}"
         _logger.info(
-            "auth/invite: %s minted invite (admin=%s)",
-            _redact_for_log(admin_id),
+            "auth/invite: %s minted invite (admin=%s, org=%s, role=%s)",
+            _redact_for_log(caller_id),
             body.is_admin,
+            effective_org_id,
+            effective_role,
         )
         return JSONResponse(
             status_code=200,
@@ -452,7 +494,9 @@ def create_accounts_auth_router(
                 "token": token_id,
                 "register_url": register_url,
                 "expires_at": now + config.invite_ttl_seconds,
-                "is_admin": body.is_admin,
+                "is_admin": body.is_admin if is_admin else False,
+                "organization_id": effective_org_id,
+                "role": effective_role,
             },
         )
 
@@ -504,6 +548,15 @@ def create_accounts_auth_router(
         if user.account_generation is not None:
             bind_account_authority(username, user.account_generation)
         account_store.mark_logged_in(username, now)
+
+        # Consume any organization invite metadata
+        try:
+            from omnigent.server.organization_store import get_organization_store
+            org_store = get_organization_store()
+            org_store.consume_org_invite(body.invite, username)
+        except Exception:
+            _logger.exception("Failed to bind registered user %s to organization", username)
+
         # Admin list applies to invite-registered users too (additive).
         # Re-fetch so the response reflects a promotion; the invite's
         # own ``invited_is_admin`` still applies independently.
@@ -723,12 +776,32 @@ def create_accounts_auth_router(
 
     @router.get("/users")
     async def list_users(request: Request) -> Response:
-        """List all users (admin only)."""
-        admin_id = auth_provider.get_user_id(request)
-        if admin_id is None or not account_store.is_admin(admin_id):
-            return JSONResponse(status_code=403, content={"error": "admin only"})
+        """List users (Global Admin or Supervisor)."""
+        caller_id = auth_provider.get_user_id(request)
+        if caller_id is None:
+            return JSONResponse(status_code=401, content={"error": "not authenticated"})
 
-        users = account_store.list_users()
+        is_admin = account_store.is_admin(caller_id)
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        is_spv = org_store.is_user_supervisor(caller_id)
+
+        if not is_admin and not is_spv:
+            return JSONResponse(status_code=403, content={"error": "admin or supervisor privileges required"})
+
+        all_users = account_store.list_users()
+        user_org_map = org_store.get_all_users_organizations_map()
+
+        if is_admin:
+            filtered_users = all_users
+        else:
+            # Supervisor: only show users in their division(s), strictly hide Global Admins
+            managed_user_ids = set(org_store.get_supervisor_managed_users(caller_id))
+            filtered_users = [
+                u for u in all_users
+                if (u.id in managed_user_ids or u.id == caller_id) and not u.is_admin
+            ]
+
         return JSONResponse(
             status_code=200,
             content={
@@ -739,36 +812,42 @@ def create_accounts_auth_router(
                         "created_at": u.created_at,
                         "last_login_at": u.last_login_at,
                         "has_password": u.has_password,
+                        "organizations": user_org_map.get(u.id, []),
                     }
-                    for u in users
+                    for u in filtered_users
                 ]
             },
         )
 
     @router.delete("/users/{user_id}")
     async def delete_user(request: Request, user_id: str) -> Response:
-        """Remove a user (admin only).
+        """Remove a user (Global Admin or Supervisor for their division members)."""
+        caller_id = auth_provider.get_user_id(request)
+        if caller_id is None:
+            return JSONResponse(status_code=401, content={"error": "not authenticated"})
 
-        Refuses two cases:
+        is_admin = account_store.is_admin(caller_id)
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        is_spv = org_store.is_user_supervisor(caller_id)
 
-        - **Self-delete** — the calling admin would lock themselves
-          out of their own session (cookie still valid but row
-          gone; every subsequent /v1/me 401s).
-        - **Last admin** — the deploy must always have at least one
-          admin or there's no recovery path. Previously this was a
-          hardcoded "can't delete the user named 'admin'", but the
-          bootstrap admin's name now defaults to the OS user
-          (e.g. ``dhruv.gupta``), so the check generalizes to
-          "would this leave zero admins". Same invariant, name-agnostic.
-          Checked and applied atomically (see
-          ``AccountStore.delete_user``) so two concurrent deletes of
-          two different admins can't both slip past the check.
-        """
-        admin_id = auth_provider.get_user_id(request)
-        if admin_id is None or not account_store.is_admin(admin_id):
-            return JSONResponse(status_code=403, content={"error": "admin only"})
-        if user_id == admin_id:
+        if not is_admin and not is_spv:
+            return JSONResponse(status_code=403, content={"error": "admin or supervisor privileges required"})
+        if user_id == caller_id:
             return JSONResponse(status_code=400, content={"error": "cannot delete self"})
+
+        target_user = account_store.get_user(user_id)
+        if target_user is None:
+            return JSONResponse(status_code=404, content={"error": "not found"})
+
+        # Guardrail: Global Admin is immune to non-admin actions!
+        if target_user.is_admin and not is_admin:
+            return JSONResponse(status_code=403, content={"error": "cannot delete an administrator"})
+
+        if not is_admin:
+            managed_user_ids = set(org_store.get_supervisor_managed_users(caller_id))
+            if user_id not in managed_user_ids:
+                return JSONResponse(status_code=403, content={"error": "you can only manage members in your division"})
 
         scheduler = getattr(request.app.state, "scheduled_task_scheduler", None)
         persistent = getattr(request.app.state, "scheduled_task_dispatch_enabled", False)
@@ -797,16 +876,31 @@ def create_accounts_auth_router(
 
     @router.post("/users/{user_id}/reset")
     async def reset_user_password(request: Request, user_id: str) -> Response:
-        """Admin-initiated password reset.
+        """Admin or Supervisor-initiated password reset."""
+        caller_id = auth_provider.get_user_id(request)
+        if caller_id is None:
+            return JSONResponse(status_code=401, content={"error": "not authenticated"})
 
-        Mints a fresh random password, stores its hash, returns
-        the plaintext exactly once to the calling admin who
-        then DMs it to the user out-of-band. No SMTP needed.
-        Also revokes the user's existing sessions and CLI logins.
-        """
-        admin_id = auth_provider.get_user_id(request)
-        if admin_id is None or not account_store.is_admin(admin_id):
-            return JSONResponse(status_code=403, content={"error": "admin only"})
+        is_admin = account_store.is_admin(caller_id)
+        from omnigent.server.organization_store import get_organization_store
+        org_store = get_organization_store()
+        is_spv = org_store.is_user_supervisor(caller_id)
+
+        if not is_admin and not is_spv:
+            return JSONResponse(status_code=403, content={"error": "admin or supervisor privileges required"})
+
+        user = account_store.get_user(user_id)
+        if user is None:
+            return JSONResponse(status_code=404, content={"error": "not found"})
+
+        # Guardrail: Global Admin is immune to non-admin actions!
+        if user.is_admin and not is_admin:
+            return JSONResponse(status_code=403, content={"error": "cannot reset password for an administrator"})
+
+        if not is_admin:
+            managed_user_ids = set(org_store.get_supervisor_managed_users(caller_id))
+            if user_id not in managed_user_ids:
+                return JSONResponse(status_code=403, content={"error": "you can only manage members in your division"})
 
         user = account_store.get_user(user_id)
         if user is None:

@@ -10,11 +10,6 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports = async function afterPack(context) {
+  // Assets.car is omitted so macOS standardly uses icon.icns (which contains our custom brand logo)
   if (context.electronPlatformName !== "darwin") return;
-  const appName = context.packager.appInfo.productFilename;
-  const resourcesDir = path.join(context.appOutDir, `${appName}.app`, "Contents", "Resources");
-  fs.copyFileSync(
-    path.join(__dirname, "..", "icons", "Assets.car"),
-    path.join(resourcesDir, "Assets.car"),
-  );
 };

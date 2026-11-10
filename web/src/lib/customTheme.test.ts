@@ -140,10 +140,10 @@ describe("customTheme", () => {
     const theme = createCustomThemeFromPalette(PALETTES[0]);
     const variants = deriveCustomTheme({ ...theme, contrast: 53 });
 
-    expect(variants.light.selectionBackground).toBe("rgba(223, 60, 133, 0.1)");
-    expect(variants.light.selectionForeground).toBe("#651249");
-    expect(variants.dark.selectionBackground).toBe("rgba(223, 60, 133, 0.15)");
-    expect(variants.dark.selectionForeground).toBe("#f9a8d4");
+    expect(variants.light.selectionBackground).toBe("rgba(255, 170, 7, 0.1)");
+    expect(variants.light.selectionForeground).toBe("#78350f");
+    expect(variants.dark.selectionBackground).toBe("rgba(255, 170, 7, 0.15)");
+    expect(variants.dark.selectionForeground).toBe("#ffaa07");
   });
 
   it("tints the text selection with a custom accent, like the sidebar's active row", () => {

@@ -67,6 +67,7 @@ export function RunnersManagementPage() {
 
   const [selectedOrg, setSelectedOrg] = useState<OrganizationItem | null>(null);
   const [newMemberUsername, setNewMemberUsername] = useState("");
+  const [newMemberRole, setNewMemberRole] = useState<string>("member");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -167,11 +168,12 @@ export function RunnersManagementPage() {
   const handleAddOrgMember = async () => {
     if (!selectedOrg || !newMemberUsername.trim()) return;
     setActionLoading(true);
-    const ok = await addMemberToOrganization(selectedOrg.id, newMemberUsername.trim());
+    const ok = await addMemberToOrganization(selectedOrg.id, newMemberUsername.trim(), newMemberRole);
     setActionLoading(false);
     if (ok) {
-      toast.success(`Added ${newMemberUsername} to ${selectedOrg.name}`);
+      toast.success(`Added ${newMemberUsername} as ${newMemberRole} to ${selectedOrg.name}`);
       setNewMemberUsername("");
+      setNewMemberRole("member");
       void loadData();
       setSelectedOrg(null);
     } else {
@@ -527,14 +529,27 @@ export function RunnersManagementPage() {
               Enter the username of the member you want to add to this organization.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2">
-            <label className="text-xs font-medium">Username</label>
-            <Input
-              placeholder="e.g. userdemo"
-              value={newMemberUsername}
-              onChange={(e) => setNewMemberUsername(e.target.value)}
-              className="mt-1"
-            />
+          <div className="py-2 space-y-3">
+            <div>
+              <label className="text-xs font-medium">Username</label>
+              <Input
+                placeholder="e.g. userdemo"
+                value={newMemberUsername}
+                onChange={(e) => setNewMemberUsername(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium">Role in Division</label>
+              <select
+                className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                value={newMemberRole}
+                onChange={(e) => setNewMemberRole(e.target.value)}
+              >
+                <option value="member">Member (Staff Divisi)</option>
+                <option value="supervisor">Supervisor (Kepala Divisi)</option>
+              </select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedOrg(null)}>Cancel</Button>

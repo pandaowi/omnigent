@@ -88,12 +88,45 @@ class SqlOrganizationHostAssignment(OmnigentBase):
     allowed_harnesses: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class SqlOrganizationInvite(OmnigentBase):
+    """Pending invite metadata binding a token to an organization and role."""
+
+    __tablename__ = "organization_invites"
+
+    token_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), default="member")
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[int] = mapped_column(Integer, default=now_epoch)
+
+
 class OrganizationStore:
     """Store for managing organizations and host permissions."""
 
     def __init__(self, db_uri: str | None = None) -> None:
-        uri = db_uri or os.environ.get("DATABASE_URL") or os.environ.get("OMNIGENT_STORAGE_LOCATION", "")
+        import tempfile
+        uri = (
+            db_uri
+            or os.environ.get("DATABASE_URL")
+            or os.environ.get("OMNIGENT_STORAGE_LOCATION")
+            or f"sqlite:///{tempfile.gettempdir()}/omnigent_default.db"
+        )
+        self.storage_location = uri
         self._engine = get_or_create_engine(uri)
+        try:
+            OmnigentBase.metadata.create_all(
+                self._engine,
+                tables=[
+                    SqlHostPermission.__table__,
+                    SqlOrganization.__table__,
+                    SqlOrganizationMember.__table__,
+                    SqlOrganizationHostAssignment.__table__,
+                    SqlOrganizationInvite.__table__,
+                ],
+                checkfirst=True,
+            )
+        except Exception as e:
+            _logger.warning("Could not auto-create organization tables: %s", e)
 
     def _session(self) -> Session:
         return Session(self._engine)
@@ -621,12 +654,171 @@ class OrganizationStore:
                 return True
             return False
 
+    # ── Organization Invites & Supervisor Roles ────────────────────
+
+    def create_org_invite(
+        self,
+        token_id: str,
+        organization_id: str,
+        role: str = "member",
+        created_by: str = "",
+    ) -> dict[str, Any]:
+        with self._session() as s:
+            invite = SqlOrganizationInvite(
+                token_id=token_id,
+                organization_id=organization_id,
+                role=role,
+                created_by=created_by,
+                created_at=now_epoch(),
+            )
+            s.add(invite)
+            s.commit()
+            return {
+                "token_id": token_id,
+                "organization_id": organization_id,
+                "role": role,
+                "created_by": created_by,
+            }
+
+    def consume_org_invite(self, token_id: str, user_id: str) -> dict[str, Any] | None:
+        with self._session() as s:
+            invite = s.get(SqlOrganizationInvite, token_id)
+            if invite is None:
+                return None
+            org_id = invite.organization_id
+            role = invite.role
+            member = s.get(SqlOrganizationMember, (org_id, user_id))
+            if member is None:
+                member = SqlOrganizationMember(
+                    organization_id=org_id,
+                    user_id=user_id,
+                    role=role,
+                    created_at=now_epoch(),
+                )
+                s.add(member)
+            else:
+                member.role = role
+            s.delete(invite)
+            s.commit()
+            return {
+                "organization_id": org_id,
+                "user_id": user_id,
+                "role": role,
+            }
+
+    def get_user_organizations(self, user_id: str) -> list[dict[str, Any]]:
+        with self._session() as s:
+            rows = (
+                s.execute(
+                    select(SqlOrganizationMember.organization_id, SqlOrganizationMember.role, SqlOrganization.name)
+                    .join(SqlOrganization, SqlOrganization.id == SqlOrganizationMember.organization_id)
+                    .where(SqlOrganizationMember.user_id == user_id)
+                )
+                .all()
+            )
+            return [
+                {"id": r[0], "role": r[1], "name": r[2]}
+                for r in rows
+            ]
+
+    def get_all_users_organizations_map(self) -> dict[str, list[dict[str, Any]]]:
+        with self._session() as s:
+            rows = (
+                s.execute(
+                    select(
+                        SqlOrganizationMember.user_id,
+                        SqlOrganizationMember.organization_id,
+                        SqlOrganizationMember.role,
+                        SqlOrganization.name,
+                    ).join(SqlOrganization, SqlOrganization.id == SqlOrganizationMember.organization_id)
+                )
+                .all()
+            )
+            result: dict[str, list[dict[str, Any]]] = {}
+            for uid, org_id, role, org_name in rows:
+                result.setdefault(uid, []).append({
+                    "id": org_id,
+                    "name": org_name,
+                    "role": role,
+                })
+            return result
+
+    def is_user_supervisor(self, user_id: str, org_id: str | None = None) -> bool:
+        with self._session() as s:
+            query = select(SqlOrganizationMember).where(
+                SqlOrganizationMember.user_id == user_id,
+                SqlOrganizationMember.role.in_(("supervisor", "admin", "lead")),
+            )
+            if org_id:
+                query = query.where(SqlOrganizationMember.organization_id == org_id)
+            match = s.execute(query).first()
+            return match is not None
+
+    def get_supervisor_org_ids(self, user_id: str) -> list[str]:
+        with self._session() as s:
+            rows = (
+                s.execute(
+                    select(SqlOrganizationMember.organization_id).where(
+                        SqlOrganizationMember.user_id == user_id,
+                        SqlOrganizationMember.role.in_(("supervisor", "admin", "lead")),
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return list(rows)
+
+    def get_supervisor_managed_users(self, supervisor_user_id: str) -> list[str]:
+        org_ids = self.get_supervisor_org_ids(supervisor_user_id)
+        if not org_ids:
+            return []
+        with self._session() as s:
+            rows = (
+                s.execute(
+                    select(SqlOrganizationMember.user_id).where(
+                        SqlOrganizationMember.organization_id.in_(org_ids)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return list(set(rows))
+
+    def get_org_hosts(self, org_id: str) -> list[str]:
+        with self._session() as s:
+            rows = s.execute(
+                select(SqlOrganizationHostAssignment.host_id).where(
+                    SqlOrganizationHostAssignment.organization_id == org_id
+                )
+            ).scalars().all()
+            return [h.hex() if isinstance(h, (bytes, bytearray)) else str(h) for h in rows]
+
+    def update_member_role(self, org_id: str, user_id: str, role: str) -> dict[str, Any] | None:
+        with self._session() as s:
+            member = s.get(SqlOrganizationMember, (org_id, user_id))
+            if member is None:
+                return None
+            member.role = role
+            s.commit()
+            return {
+                "organization_id": org_id,
+                "user_id": user_id,
+                "role": member.role,
+            }
+
 
 _global_org_store: OrganizationStore | None = None
 
 
-def get_organization_store() -> OrganizationStore:
+def get_organization_store(db_uri: str | None = None) -> OrganizationStore:
     global _global_org_store
-    if _global_org_store is None:
+    if db_uri and (_global_org_store is None or _global_org_store.storage_location != db_uri):
+        _global_org_store = OrganizationStore(db_uri=db_uri)
+    elif _global_org_store is None:
         _global_org_store = OrganizationStore()
     return _global_org_store
+
+
+def set_organization_store(store: OrganizationStore) -> None:
+    global _global_org_store
+    _global_org_store = store

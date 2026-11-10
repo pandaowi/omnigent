@@ -28,7 +28,7 @@ export function isThemeMode(value: string | undefined): value is ThemeMode {
  * @returns Supported theme mode to use in controls.
  */
 export function normalizeThemeMode(value: string | undefined): ThemeMode {
-  return isThemeMode(value) ? value : "system";
+  return isThemeMode(value) ? value : "dark";
 }
 
 /**
@@ -36,14 +36,14 @@ export function normalizeThemeMode(value: string | undefined): ThemeMode {
  *
  * `resolvedTheme` is normally `"light"` or `"dark"` once next-themes has
  * evaluated system preference. During initial render it can be undefined,
- * so light is the conservative non-system fallback for icon and Shiki
+ * so dark is the default non-system fallback for icon and Shiki
  * theme selection until the provider updates.
  *
  * @param value Resolved theme string from next-themes, e.g. `"dark"`.
  * @returns Concrete light or dark rendering mode.
  */
 export function normalizeResolvedTheme(value: string | undefined): ResolvedThemeMode {
-  return value === "dark" ? "dark" : "light";
+  return value === "light" ? "light" : "dark";
 }
 
 /**

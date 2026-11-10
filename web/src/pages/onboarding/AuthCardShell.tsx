@@ -5,7 +5,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { AnimatedOmnigentPanel } from "@/components/onboarding/AnimatedOmnigentPanel";
 import { useIsMobileViewport } from "@/hooks/useIsMobileViewport";
-import omnigentLogo from "@/assets/omnigent-starfish-icon.png";
+import omnigentLogo from "@/assets/omnigent-logo.png";
 
 const DEFAULT_PANEL_HEIGHT = 220;
 const MIN_PANEL_HEIGHT = 200;

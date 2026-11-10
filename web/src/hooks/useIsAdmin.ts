@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentIsAdmin, resolveIdentity } from "@/lib/identity";
+import { getCurrentIsAdmin, getCurrentIsSupervisor, resolveIdentity } from "@/lib/identity";
 
 // Mode-agnostic admin gate, sourced from the `/v1/me` identity probe
 // (the shared `users.is_admin` column). Unlike `useMe`, which reads the
@@ -26,6 +26,20 @@ export function useIsAdmin(): boolean {
     // Seed from the already-resolved cache so first paint is correct when
     // identity resolved during boot (the common case).
     initialData: getCurrentIsAdmin,
+  });
+  return data;
+}
+
+/** Whether the current user is a division supervisor. */
+export function useIsSupervisor(): boolean {
+  const { data } = useQuery<boolean>({
+    queryKey: ["identity-is-supervisor"],
+    queryFn: async () => {
+      await resolveIdentity();
+      return getCurrentIsSupervisor();
+    },
+    staleTime: 30_000,
+    initialData: getCurrentIsSupervisor,
   });
   return data;
 }

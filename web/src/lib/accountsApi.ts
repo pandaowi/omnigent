@@ -292,12 +292,19 @@ export async function setup(body: SetupRequest): Promise<LoginResult> {
  * (so the UI can render a "External login" badge for header/OIDC
  * rows that haven't been converted to accounts).
  */
+export interface UserOrganization {
+  id: string;
+  name: string;
+  role: string;
+}
+
 export interface AccountListEntry {
   id: string;
   is_admin: boolean;
   created_at: number | null;
   last_login_at: number | null;
   has_password: boolean;
+  organizations?: UserOrganization[];
 }
 
 /** Successful response from ``POST /auth/invite``. */
@@ -307,6 +314,8 @@ export interface InviteCreated {
   register_url: string;
   expires_at: number;
   is_admin: boolean;
+  organization_id?: string | null;
+  role?: string;
 }
 
 /** Successful response from ``POST /auth/users/{id}/reset``. */
@@ -382,13 +391,21 @@ export async function listUsers(): Promise<AccountListEntry[] | null> {
  *     rights. Defaults false; the modal flips it via a checkbox.
  * :returns: The new token + the URL to share, or a typed failure.
  */
-export async function createInvite(isAdmin: boolean): Promise<InviteCreated | AdminFailure> {
+export async function createInvite(
+  isAdmin: boolean,
+  organizationId?: string | null,
+  role: string = "member",
+): Promise<InviteCreated | AdminFailure> {
   return adminRequest<InviteCreated>(
     () =>
       fetch(withBasePath("/auth/invite"), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ is_admin: isAdmin }),
+        body: JSON.stringify({
+          is_admin: isAdmin,
+          organization_id: organizationId || null,
+          role,
+        }),
       }),
     (body) => {
       const b = body as {
@@ -396,12 +413,16 @@ export async function createInvite(isAdmin: boolean): Promise<InviteCreated | Ad
         register_url: string;
         expires_at: number;
         is_admin: boolean;
+        organization_id?: string | null;
+        role?: string;
       };
       return {
         token: b.token,
         register_url: b.register_url,
         expires_at: b.expires_at,
         is_admin: b.is_admin,
+        organization_id: b.organization_id,
+        role: b.role,
       };
     },
   );

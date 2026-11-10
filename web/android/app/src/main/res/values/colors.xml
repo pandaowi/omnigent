@@ -5,8 +5,8 @@
   in values-night/colors.xml.
 -->
 <resources>
-    <!-- App-icon background: the brand dark-navy (iOS Icon Composer gradient). -->
-    <color name="ic_launcher_background">#1E2742</color>
+    <!-- App-icon background: Teal brand color (#09747e) matching the new IPLabs logo. -->
+    <color name="ic_launcher_background">#09747E</color>
 
     <color name="brand_background">#FFFFFF</color>
     <color name="brand_foreground">#11171C</color>

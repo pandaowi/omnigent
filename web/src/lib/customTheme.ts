@@ -24,10 +24,10 @@ export interface CustomTheme {
 
 export const DEFAULT_CUSTOM_THEME: CustomTheme = {
   basePalette: "omni",
-  accent: "#df3c85",
-  darkAccent: "#df3c85",
+  accent: "#ffaa07",
+  darkAccent: "#ffaa07",
   tint: "#ffffff",
-  darkTint: "#0e0b19",
+  darkTint: "#061212",
   contrast: 50,
   translucentSidebar: false,
 };

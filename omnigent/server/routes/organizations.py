@@ -36,13 +36,18 @@ class AddMemberRequest(BaseModel):
     role: str = "member"
 
 
+class UpdateMemberRoleRequest(BaseModel):
+    role: str
+
+
 def create_organizations_router(
     *,
     auth_provider: AuthProvider | None = None,
     permission_store: PermissionStore | None = None,
+    db_uri: str | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["organizations"])
-    org_store = get_organization_store()
+    org_store = get_organization_store(db_uri=db_uri)
 
     def _require_admin(request: Request) -> str:
         user_id = require_user(request, auth_provider)
@@ -114,6 +119,33 @@ def create_organizations_router(
         )
         return member
 
+    @router.put("/organizations/{org_id}/members/{member_user_id}/role")
+    async def update_org_member_role(
+        request: Request,
+        org_id: str,
+        member_user_id: str,
+        body: UpdateMemberRoleRequest,
+    ) -> dict[str, Any]:
+        """Update role of an organization member (Admin or Supervisor of this org)."""
+        user_id = require_user(request, auth_provider)
+        if not user_id:
+            raise HTTPException(status_code=401, detail="unauthorized")
+        is_admin = permission_store.is_admin(user_id) if permission_store else False
+        is_spv = org_store.is_user_supervisor(user_id, org_id)
+        if not is_admin and not is_spv:
+            raise HTTPException(status_code=403, detail="admin or organization supervisor required")
+        if not is_admin and body.role not in ("member",):
+            raise HTTPException(status_code=403, detail="only global admin can designate supervisors")
+        updated = await asyncio.to_thread(
+            org_store.update_member_role,
+            org_id=org_id,
+            user_id=member_user_id.strip(),
+            role=body.role.strip(),
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="member not found in organization")
+        return updated
+
     @router.delete("/organizations/{org_id}/members/{member_user_id}")
     async def remove_organization_member(request: Request, org_id: str, member_user_id: str) -> dict[str, bool]:
         """Remove a user from an organization (Admin only)."""
@@ -141,10 +173,25 @@ def create_organizations_router(
 
     @router.get("/users/execution-overview")
     async def get_execution_overview(request: Request) -> dict[str, Any]:
-        """Get host assignments and allowed models for all users (Admin only)."""
-        _require_admin(request)
-        overview = await asyncio.to_thread(org_store.get_all_user_host_assignments)
-        return {"overview": overview, "users": overview}
+        """Get host assignments and allowed models for users (Admin or Supervisor)."""
+        caller_id = require_user(request, auth_provider)
+        if not caller_id:
+            raise HTTPException(status_code=401, detail="unauthorized")
+        is_admin = permission_store.is_admin(caller_id) if permission_store else False
+        is_spv = org_store.is_user_supervisor(caller_id)
+        if not is_admin and not is_spv:
+            raise HTTPException(status_code=403, detail="admin or supervisor privileges required")
+
+        all_assignments = await asyncio.to_thread(org_store.get_all_user_host_assignments)
+        if is_admin:
+            filtered = all_assignments
+        else:
+            managed_user_ids = set(org_store.get_supervisor_managed_users(caller_id))
+            filtered = [
+                a for a in all_assignments
+                if a.get("user_id") in managed_user_ids or a.get("user_id") == caller_id
+            ]
+        return {"overview": filtered, "users": filtered}
 
     @router.get("/users/me/execution")
     async def get_my_execution(request: Request) -> dict[str, Any]:
@@ -161,14 +208,36 @@ def create_organizations_router(
         target_user_id: str,
         body: UpdateUserExecutionRequest,
     ) -> dict[str, Any]:
-        """Set assigned runner and model permissions for a user (Admin only)."""
-        admin_id = _require_admin(request)
+        """Set assigned runner and model permissions for a user (Admin or Supervisor for their division)."""
+        caller_id = require_user(request, auth_provider)
+        if not caller_id:
+            raise HTTPException(status_code=401, detail="unauthorized")
+        is_admin = permission_store.is_admin(caller_id) if permission_store else False
+        is_spv = org_store.is_user_supervisor(caller_id)
+        if not is_admin and not is_spv:
+            raise HTTPException(status_code=403, detail="admin or supervisor privileges required")
+
+        # Supervisor Guardrails:
+        if not is_admin:
+            # Check target is a member of supervisor's division
+            managed = set(org_store.get_supervisor_managed_users(caller_id))
+            if target_user_id not in managed:
+                raise HTTPException(status_code=403, detail="you can only manage execution for members in your division")
+            # If host_id is specified, verify it's assigned to the supervisor's division
+            if body.host_id:
+                spv_org_ids = org_store.get_supervisor_org_ids(caller_id)
+                allowed_hosts = set()
+                for org_id in spv_org_ids:
+                    allowed_hosts.update(org_store.get_org_hosts(org_id))
+                if body.host_id not in allowed_hosts:
+                    raise HTTPException(status_code=403, detail="host is not assigned to your division")
+
         result = await asyncio.to_thread(
             org_store.set_user_host_execution,
             user_id=target_user_id.strip(),
             host_id=body.host_id.strip() if body.host_id else None,
             allowed_models=body.allowed_models,
-            assigned_by=admin_id,
+            assigned_by=caller_id,
             harness=body.harness.strip() if body.harness else None,
             default_model=body.default_model.strip() if body.default_model else None,
             allowed_harnesses=body.allowed_harnesses,

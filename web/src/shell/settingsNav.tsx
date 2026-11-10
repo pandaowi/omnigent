@@ -30,7 +30,7 @@ import { Link, useLocation } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { customAgentsSettingsEnabled, isSingleUserMode } from "@/lib/capabilities";
-import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useIsAdmin, useIsSupervisor } from "@/hooks/useIsAdmin";
 import { isElectronShell } from "@/lib/nativeBridge";
 import { cn } from "@/lib/utils";
 import { SIDEBAR_ROW } from "./sidebarStyles";
@@ -104,6 +104,7 @@ export function settingsNavGroups(
   integrationsEnabled = false,
   customAgentsEnabled = false,
   mcpEnabled = false,
+  isSupervisor = false,
 ): SettingsNavGroup[] {
   const harnesses: SettingsNavItem = {
     id: "harnesses",
@@ -158,17 +159,13 @@ export function settingsNavGroups(
   // `accountsEnabled`) so the surface also appears under OIDC/SSO, the one
   // mode where there's otherwise no admin chrome at all. Members runs
   // read-only under OIDC (no password actions); Policies is identical.
-  if (isAdmin) {
-    // Members (manage other accounts) and Sharing (grant sessions to other
-    // users) have no meaning in single-user mode — there are no other users —
-    // so drop both from the nav there. Policies stays: global policies apply
-    // to a solo user's own sessions too.
+  if (isAdmin || isSupervisor) {
     const adminItems: SettingsNavItem[] = [];
     if (!isSingleUser) adminItems.push({ id: "members", label: "Members", icon: UsersIcon });
-    if (!isSingleUser) adminItems.push({ id: "runners", label: "Runners & Teams", icon: ServerIcon });
-    adminItems.push({ id: "policies", label: "Policies", icon: ShieldCheckIcon });
-    if (!isSingleUser) adminItems.push({ id: "sharing", label: "Sharing", icon: Share2Icon });
-    groups.push({ title: "Admin", items: adminItems });
+    if (!isSingleUser && isAdmin) adminItems.push({ id: "runners", label: "Runners & Teams", icon: ServerIcon });
+    if (isAdmin) adminItems.push({ id: "policies", label: "Policies", icon: ShieldCheckIcon });
+    if (!isSingleUser && isAdmin) adminItems.push({ id: "sharing", label: "Sharing", icon: Share2Icon });
+    groups.push({ title: isAdmin ? "Admin" : "Division Management", items: adminItems });
   }
   groups.push({
     title: "Archived",
@@ -258,6 +255,7 @@ export function SettingsSidebarBody({
   // `/v1/me` (mode-agnostic) so the group appears for admins under OIDC too,
   // not just accounts deploys. Non-admins never see it.
   const isAdmin = useIsAdmin();
+  const isSupervisor = useIsSupervisor();
   const integrationsEnabled =
     info !== "loading" && (info.enabled_connections ?? []).some((provider) => provider !== "mcp");
   const mcpEnabled = info !== "loading" && (info.enabled_connections ?? []).includes("mcp");
@@ -270,6 +268,7 @@ export function SettingsSidebarBody({
     integrationsEnabled,
     customAgentsSettingsEnabled(info),
     mcpEnabled,
+    isSupervisor,
   );
 
   return (

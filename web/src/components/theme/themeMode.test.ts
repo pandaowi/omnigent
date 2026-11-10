@@ -17,19 +17,19 @@ describe("theme mode helpers", () => {
     expect(isThemeMode(undefined)).toBe(false);
   });
 
-  it("normalizes missing or unknown stored theme values to system", () => {
+  it("normalizes missing or unknown stored theme values to dark", () => {
     expect(normalizeThemeMode("light")).toBe("light");
     expect(normalizeThemeMode("dark")).toBe("dark");
     expect(normalizeThemeMode("system")).toBe("system");
-    expect(normalizeThemeMode("sepia")).toBe("system");
-    expect(normalizeThemeMode(undefined)).toBe("system");
+    expect(normalizeThemeMode("sepia")).toBe("dark");
+    expect(normalizeThemeMode(undefined)).toBe("dark");
   });
 
   it("normalizes resolved theme values to the light/dark rendering modes", () => {
     expect(normalizeResolvedTheme("dark")).toBe("dark");
     expect(normalizeResolvedTheme("light")).toBe("light");
-    expect(normalizeResolvedTheme("system")).toBe("light");
-    expect(normalizeResolvedTheme(undefined)).toBe("light");
+    expect(normalizeResolvedTheme("system")).toBe("dark");
+    expect(normalizeResolvedTheme(undefined)).toBe("dark");
   });
 
   it("cycles system → dark → light → system without a system theme", () => {

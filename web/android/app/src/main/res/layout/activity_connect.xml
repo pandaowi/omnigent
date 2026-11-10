@@ -23,12 +23,13 @@
         android:paddingVertical="24dp">
 
         <ImageView
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:layout_marginBottom="12dp"
             android:adjustViewBounds="true"
             android:contentDescription="@string/connect_logo_desc"
-            android:maxHeight="56dp"
+            android:maxHeight="64dp"
             android:src="@drawable/omnigents_logo" />
 
         <TextView

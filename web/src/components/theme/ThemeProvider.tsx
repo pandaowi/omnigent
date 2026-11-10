@@ -37,7 +37,7 @@ export function ThemeProvider({
       // Embedded CSS is scoped to its portal root, never the host document.
       attribute={embedded ? [] : "class"}
       enableColorScheme={!embedded}
-      defaultTheme="system"
+      defaultTheme="dark"
       enableSystem
       disableTransitionOnChange
       storageKey="web-theme"
