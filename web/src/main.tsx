@@ -140,8 +140,7 @@ function RootApp({ initialInfo }: { initialInfo: ServerInfo | "loading" }) {
   useEffect(() => {
     if (info === "loading") return;
     if (info.branding?.app_name) document.title = info.branding.app_name;
-    const faviconUrl = info.branding?.logos.favicon;
-    if (!faviconUrl) return;
+    const faviconUrl = info.branding?.logos.favicon ?? "/logo.png?v=2";
     let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
     if (!link) {
       link = document.createElement("link");

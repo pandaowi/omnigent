@@ -3,6 +3,7 @@ import { OttoEyes } from "@/components/OttoEyes";
 import { OttoIcon } from "@/components/icons/OttoIcon";
 import { withBasePath } from "@/lib/basePath";
 import { useAppName, useLogoUrl } from "@/lib/branding";
+import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { authenticatedFetch } from "@/lib/identity";
 import { getOmnigentHostConfig, getOmnigentHostGeneration } from "@/lib/host";
 
@@ -168,8 +169,23 @@ export function BrandLogo({
   className?: string;
   variant?: "eyes" | "icon";
 }) {
+  const info = useServerInfo();
   const logoUrl = useLogoUrl(variant === "icon" ? "loading" : "main");
   const appName = useAppName();
+
+  // Prevent flash of starfish mascot on page refresh / initial mount while
+  // server info is loading: render the bundled brand logo directly.
+  if (info === "loading") {
+    return (
+      <img
+        src={withBasePath("/logo.png")}
+        className={className}
+        alt={appName}
+        style={{ objectFit: "contain" }}
+      />
+    );
+  }
+
   if (logoUrl) {
     if (getOmnigentHostConfig().fetcher) {
       const generation = getOmnigentHostGeneration();

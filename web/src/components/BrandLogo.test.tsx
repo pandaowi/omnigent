@@ -205,4 +205,15 @@ describe("BrandLogo", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:host-a");
     expect(authenticatedFetch).toHaveBeenCalledTimes(2);
   });
+
+  it("renders bundled brand logo without flashing mascot while server info is loading", () => {
+    render(
+      <CapabilitiesContext.Provider value="loading">
+        <BrandLogo className="brand" />
+      </CapabilitiesContext.Provider>,
+    );
+
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/logo.png");
+    expect(screen.queryByTestId("otto-eyes")).not.toBeInTheDocument();
+  });
 });
