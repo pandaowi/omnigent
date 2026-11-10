@@ -817,7 +817,7 @@ function ColorThemeControl() {
       : selectedPalette!;
   const paletteDescription =
     selection === "custom"
-      ? `Based on ${PALETTES.find((palette) => palette.id === customTheme.basePalette)?.label ?? "Omnigent"}`
+      ? `Based on ${PALETTES.find((palette) => palette.id === customTheme.basePalette)?.label ?? "IPLabs"}`
       : selectedPalette?.blurb;
 
   return (

@@ -215,7 +215,7 @@ export interface PaletteMeta {
 export const PALETTES: readonly PaletteMeta[] = [
   {
     id: "omni",
-    label: "Omnigent",
+    label: "IPLabs",
     blurb: "The signature amber brand look.",
     light: {
       bg: "#fdfdfa",
