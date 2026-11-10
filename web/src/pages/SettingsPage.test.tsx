@@ -76,6 +76,7 @@ vi.mock("@/shell/ImportSessionsPanel", () => ({
 vi.mock("@/lib/accountsApi", () => ({
   logout: vi.fn(),
   changePassword: vi.fn(),
+  getMe: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/lib/identity", () => ({
   resolveIdentity: () => Promise.resolve(mocks.me?.id ?? null),
@@ -1083,8 +1084,8 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByTestId("reset-appearance-button"));
     fireEvent.click(screen.getByTestId("reset-appearance-confirm"));
 
-    // Mode is restored to "system".
-    expect(mocks.setTheme).toHaveBeenCalledWith("system");
+    // Mode is restored to "dark".
+    expect(mocks.setTheme).toHaveBeenCalledWith("dark");
 
     // Fonts are back to their defaults.
     expect((screen.getByTestId("ui-font-size-input") as HTMLInputElement).value).toBe("13");
@@ -1402,6 +1403,28 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: /Members/ })).toBeNull();
     expect(screen.queryByRole("link", { name: /Policies/ })).toBeNull();
+  });
+
+  it("opens change password dialog and validates matching passwords", async () => {
+    mocks.me = { id: "alice", is_admin: true };
+    renderPage("/settings/account");
+    await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
+    expect(screen.getByText(/Administrator/)).toBeInTheDocument();
+
+    const changePwBtn = screen.getByRole("button", { name: /Change password/ });
+    fireEvent.click(changePwBtn);
+
+    expect(screen.getByRole("heading", { name: "Change password" })).toBeInTheDocument();
+    const oldInput = screen.getByPlaceholderText("Current password");
+    const newInput = screen.getByPlaceholderText("New password");
+    const confirmInput = screen.getByPlaceholderText("Confirm new password");
+
+    fireEvent.change(oldInput, { target: { value: "oldpass123" } });
+    fireEvent.change(newInput, { target: { value: "newpass123" } });
+    fireEvent.change(confirmInput, { target: { value: "mismatchpass" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("New passwords don't match.");
   });
 
   it("shows an empty default base branch by default and persists a typed value", () => {

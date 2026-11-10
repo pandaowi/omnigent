@@ -45,12 +45,17 @@ import {
 } from "react";
 import { useViewerId } from "@/hooks/useViewerId";
 import {
+  AlertCircleIcon,
   ArchiveRestoreIcon,
   AlertTriangleIcon,
   BotIcon,
+  CheckCircle2Icon,
   DownloadIcon,
+  EyeIcon,
+  EyeOffIcon,
   FileDiffIcon,
   FilesIcon,
+  FingerprintIcon,
   GitPullRequestIcon,
   KeyRoundIcon,
   Loader2Icon,
@@ -63,6 +68,8 @@ import {
   PanelRightIcon,
   PinIcon,
   PlusIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
   SunIcon,
   SquareCheckIcon,
   SquareIcon,
@@ -70,6 +77,7 @@ import {
   Trash2Icon,
   UploadIcon,
   UserCogIcon,
+  UserIcon,
   XIcon,
   ClockIcon,
 } from "lucide-react";
@@ -104,7 +112,8 @@ import {
 } from "@/components/ui/dialog";
 import { ALT_KEY, MOD_KEY } from "@/components/KeyboardShortcut";
 import { KeyboardShortcutsList } from "@/components/KeyboardShortcutsDialog";
-import { changePassword, logout } from "@/lib/accountsApi";
+import { changePassword, getMe, logout, type CurrentAccount } from "@/lib/accountsApi";
+import { useAppName } from "@/lib/branding";
 import { withBasePath } from "@/lib/basePath";
 import {
   beginGithubConnect,
@@ -131,7 +140,7 @@ import {
   useStopAndDeleteConversation,
 } from "@/hooks/useConversations";
 import { conversationDisplayLabel } from "@/shell/sidebarNav";
-import { absoluteTime } from "@/lib/relativeTime";
+import { absoluteTime, relativeTime } from "@/lib/relativeTime";
 import { useNavigate } from "@/lib/routing";
 import { useSettingsRoute } from "@/shell/settingsNav";
 import { ImportSessionsPanel } from "@/shell/ImportSessionsPanel";
@@ -981,7 +990,7 @@ function AppearanceSection() {
 
   const resetAppearance = () => {
     // Reset every appearance preference back to the product default.
-    setTheme("system");
+    setTheme("dark");
 
     writeTerminalThemeMode(TERMINAL_THEME_DEFAULT);
 
@@ -2627,9 +2636,11 @@ function UpdatesSection() {
 function AccountSection() {
   const info = useServerInfo();
   const accountsEnabled = info !== "loading" && info.accounts_enabled;
+  const appName = useAppName();
   // Identity for display. Sourced from the mode-agnostic `/v1/me` probe so it
   // works under OIDC too (the accounts-only `/auth/me` doesn't exist there).
   const [me, setMe] = useState<{ id: string; is_admin: boolean } | null | "unknown">("unknown");
+  const [currentAccount, setCurrentAccount] = useState<CurrentAccount | null>(null);
 
   // Change-password dialog state (lifted verbatim from the old AccountMenu).
   // Only used in accounts mode — OIDC identities have no local password.
@@ -2637,6 +2648,9 @@ function AccountSection() {
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+  const [showOldPw, setShowOldPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [pwBusy, setPwBusy] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwDone, setPwDone] = useState(false);
@@ -2647,6 +2661,12 @@ function AccountSection() {
       setMe(userId === null ? null : { id: userId, is_admin: getCurrentIsAdmin() });
     })();
   }, []);
+
+  useEffect(() => {
+    if (accountsEnabled && typeof getMe === "function") {
+      void getMe().then(setCurrentAccount).catch(() => {});
+    }
+  }, [accountsEnabled]);
 
   const onSignOut = useCallback(async () => {
     if (accountsEnabled) {
@@ -2668,6 +2688,9 @@ function AccountSection() {
     setOldPw("");
     setNewPw("");
     setConfirmPw("");
+    setShowOldPw(false);
+    setShowNewPw(false);
+    setShowConfirmPw(false);
     setPwError(null);
     setPwDone(false);
     setPwBusy(false);
@@ -2676,6 +2699,10 @@ function AccountSection() {
   const onSubmitPassword = useCallback(async () => {
     if (newPw !== confirmPw) {
       setPwError("New passwords don't match.");
+      return;
+    }
+    if (newPw.length < 8) {
+      setPwError("New password must be at least 8 characters.");
       return;
     }
     setPwBusy(true);
@@ -2696,136 +2723,337 @@ function AccountSection() {
     return <Section title="Account">{null}</Section>;
   }
 
+  const initials = me.id ? me.id.slice(0, 2).toUpperCase() : "U";
+
   return (
-    <Section title="Account">
+    <Section
+      title="Account"
+      description="Manage your profile, authentication credentials, and active session."
+    >
       <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border">
-            <UserCogIcon className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <div className="truncate font-medium">
-              {me.id}
-              {me.is_admin && (
-                <span className="ml-1 text-sm font-normal text-muted-foreground">(admin)</span>
+        {/* Profile Card */}
+        <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-card/95 via-card/80 to-card/50 p-6 shadow-sm backdrop-blur-xl">
+          {/* Ambient decorative lighting */}
+          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#09747e]/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-16 right-1/4 size-44 rounded-full bg-[#ffaa07]/10 blur-3xl" />
+
+          <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            {/* Avatar Squircle */}
+            <div className="relative flex size-16 shrink-0 items-center justify-center rounded-2xl border border-[#09747e]/30 bg-gradient-to-br from-[#09747e]/25 via-[#0e2a2a] to-[#ffaa07]/20 text-xl font-bold tracking-wider text-foreground shadow-md shadow-[#09747e]/10 ring-1 ring-white/10">
+              {initials}
+              <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-background ring-2 ring-background">
+                <span className="size-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              </span>
+            </div>
+
+            {/* User Meta */}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h2 className="truncate text-xl font-bold tracking-tight text-foreground">
+                  {me.id}
+                </h2>
+                {me.is_admin ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffaa07]/35 bg-[#ffaa07]/10 px-2.5 py-0.5 text-xs font-semibold text-[#ffaa07] shadow-sm">
+                    <ShieldCheckIcon className="size-3.5" />
+                    <span>Administrator</span>
+                    <span className="text-[11px] font-normal opacity-80">(admin)</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                    <UserIcon className="size-3.5" />
+                    <span>Member</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-400">
+                  <span className="size-1.5 rounded-full bg-emerald-400" />
+                  Active Session
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1 text-muted-foreground">
+                  <FingerprintIcon className="size-3.5 text-[#09747e]" />
+                  {accountsEnabled ? "Built-in Account" : "Single Sign-On (OIDC)"}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1 text-muted-foreground">
+                  <SparklesIcon className="size-3.5 text-[#ffaa07]" />
+                  {appName}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Optional account creation / last login info */}
+          {currentAccount && (currentAccount.created_at !== null || currentAccount.last_login_at !== null) && (
+            <div className="relative mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-border/50 pt-4 text-xs text-muted-foreground">
+              {currentAccount.created_at !== null && (
+                <div className="flex items-center gap-2">
+                  <ClockIcon className="size-3.5 text-muted-foreground/70" />
+                  <span>Member since: <strong className="font-medium text-foreground">{absoluteTime(currentAccount.created_at * 1000)}</strong></span>
+                </div>
               )}
+              {currentAccount.last_login_at !== null && (
+                <div className="flex items-center gap-2">
+                  <span className="size-1.5 rounded-full bg-muted-foreground/60" />
+                  <span>Last active: <strong className="font-medium text-foreground">{relativeTime(currentAccount.last_login_at * 1000)}</strong></span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Action / Settings Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card: Password & Security */}
+          <div className="flex flex-col justify-between rounded-xl border border-border/70 bg-card/60 p-5 backdrop-blur-sm transition-all hover:border-border">
+            <div>
+              <div className="mb-3.5 flex size-9 items-center justify-center rounded-lg border border-[#ffaa07]/30 bg-[#ffaa07]/10 text-[#ffaa07]">
+                <KeyRoundIcon className="size-4.5" />
+              </div>
+              <h3 className="font-heading text-base font-semibold text-foreground">
+                Password &amp; Credentials
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {accountsEnabled
+                  ? "Update your login password to keep your account safe. Use at least 8 characters with numbers or symbols."
+                  : "Your authentication credentials and multi-factor security are managed externally via your Single Sign-On (SSO) identity provider."}
+              </p>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-border/40">
+              {accountsEnabled ? (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-border/80 font-medium hover:border-[#ffaa07]/50 hover:bg-[#ffaa07]/10 hover:text-[#ffaa07] transition-all"
+                  onClick={() => {
+                    resetPwForm();
+                    setPwOpen(true);
+                  }}
+                  componentId="settings.account.change_password"
+                >
+                  <KeyRoundIcon className="size-4" /> Change password
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                  <ShieldCheckIcon className="size-4 text-emerald-500 shrink-0" />
+                  <span>Managed by external SSO</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card: Session Management */}
+          <div className="flex flex-col justify-between rounded-xl border border-border/70 bg-card/60 p-5 backdrop-blur-sm transition-all hover:border-border">
+            <div>
+              <div className="mb-3.5 flex size-9 items-center justify-center rounded-lg border border-destructive/20 bg-destructive/10 text-destructive">
+                <LogOutIcon className="size-4.5" />
+              </div>
+              <h3 className="font-heading text-base font-semibold text-foreground">
+                Session &amp; Sign Out
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Sign out of your active session on this device. This will revoke your session cookie and reset cached workspace state.
+              </p>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-border/40">
+              <Button
+                variant="outline"
+                className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/60 transition-all font-medium"
+                onClick={() => void onSignOut()}
+                componentId="settings.account.sign_out"
+              >
+                <LogOutIcon className="size-4" /> Sign out
+              </Button>
             </div>
           </div>
         </div>
 
-        {/* Members / Policies used to live here as links to standalone pages.
-            They're now first-class settings sub-categories in the sidebar nav
-            (Admin group), so entering them keeps the settings surface put
-            instead of navigating away from /settings. */}
+        {/* Change password modal dialog */}
+        <Dialog
+          open={pwOpen}
+          onOpenChange={(open) => {
+            setPwOpen(open);
+            if (!open) resetPwForm();
+          }}
+        >
+          <DialogContent className="max-w-md rounded-2xl border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl">
+            <DialogHeader className="text-center sm:text-left">
+              <div className="mx-auto sm:mx-0 mb-3 flex size-11 items-center justify-center rounded-xl border border-[#ffaa07]/30 bg-[#ffaa07]/10 text-[#ffaa07] shadow-sm">
+                <KeyRoundIcon className="size-5.5" />
+              </div>
+              <DialogTitle className="text-lg font-bold">Change password</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                {pwDone
+                  ? "Your password has been changed."
+                  : "Enter your current password and choose a new one."}
+              </DialogDescription>
+            </DialogHeader>
 
-        <div className="flex flex-col gap-1">
-          {/* Change password is accounts-only — an OIDC identity's password
-              lives with the IdP, so there's nothing to change here. */}
-          {accountsEnabled && (
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-2"
-              onClick={() => {
-                resetPwForm();
-                setPwOpen(true);
-              }}
-              componentId="settings.account.change_password"
-            >
-              <KeyRoundIcon className="size-4" /> Change password
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2"
-            onClick={() => void onSignOut()}
-            componentId="settings.account.sign_out"
-          >
-            <LogOutIcon className="size-4" /> Sign out
-          </Button>
-        </div>
-      </div>
-
-      <Dialog
-        open={pwOpen}
-        onOpenChange={(open) => {
-          setPwOpen(open);
-          if (!open) resetPwForm();
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change password</DialogTitle>
-            <DialogDescription>
-              {pwDone
-                ? "Your password has been changed."
-                : "Enter your current password and choose a new one."}
-            </DialogDescription>
-          </DialogHeader>
-
-          {!pwDone && (
-            <form
-              className="space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void onSubmitPassword();
-              }}
-            >
-              <Input
-                type="password"
-                autoComplete="current-password"
-                placeholder="Current password"
-                value={oldPw}
-                onChange={(e) => setOldPw(e.target.value)}
-                disabled={pwBusy}
-                required
-              />
-              <Input
-                type="password"
-                autoComplete="new-password"
-                placeholder="New password"
-                value={newPw}
-                onChange={(e) => setNewPw(e.target.value)}
-                disabled={pwBusy}
-                required
-              />
-              <Input
-                type="password"
-                autoComplete="new-password"
-                placeholder="Confirm new password"
-                value={confirmPw}
-                onChange={(e) => setConfirmPw(e.target.value)}
-                disabled={pwBusy}
-                required
-              />
-              {pwError !== null && (
-                <div
-                  role="alert"
-                  className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-ui text-destructive"
-                >
-                  {pwError}
+            {!pwDone && (
+              <form
+                className="space-y-3.5 pt-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void onSubmitPassword();
+                }}
+              >
+                {/* Current password */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Current Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showOldPw ? "text" : "password"}
+                      autoComplete="current-password"
+                      placeholder="Current password"
+                      value={oldPw}
+                      onChange={(e) => setOldPw(e.target.value)}
+                      disabled={pwBusy}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOldPw(!showOldPw)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      tabIndex={-1}
+                      aria-label="Toggle password visibility"
+                    >
+                      {showOldPw ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                    </button>
+                  </div>
                 </div>
-              )}
-              <DialogFooter>
-                <Button
-                  type="submit"
-                  disabled={
-                    pwBusy || oldPw.length === 0 || newPw.length === 0 || confirmPw.length === 0
-                  }
-                  componentId="settings.account.update_password"
-                >
-                  {pwBusy ? "Changing…" : "Change password"}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
 
-          {pwDone && (
-            <DialogFooter>
-              <Button onClick={() => setPwOpen(false)}>Done</Button>
-            </DialogFooter>
-          )}
-        </DialogContent>
-      </Dialog>
+                {/* New password */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">New Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showNewPw ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="New password"
+                      value={newPw}
+                      onChange={(e) => setNewPw(e.target.value)}
+                      disabled={pwBusy}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPw(!showNewPw)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      tabIndex={-1}
+                      aria-label="Toggle password visibility"
+                    >
+                      {showNewPw ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                    </button>
+                  </div>
+                  {newPw.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      {newPw.length >= 8 ? (
+                        <span className="flex items-center gap-1 text-emerald-400">
+                          <CheckCircle2Icon className="size-3" /> Minimum 8 characters reached
+                        </span>
+                      ) : (
+                        <span className="text-amber-400">
+                          Must be at least 8 characters ({newPw.length}/8)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm new password */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Confirm New Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPw ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Confirm new password"
+                      value={confirmPw}
+                      onChange={(e) => setConfirmPw(e.target.value)}
+                      disabled={pwBusy}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPw(!showConfirmPw)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      tabIndex={-1}
+                      aria-label="Toggle password visibility"
+                    >
+                      {showConfirmPw ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                    </button>
+                  </div>
+                  {confirmPw.length > 0 && (
+                    <div className="text-[11px]">
+                      {newPw === confirmPw ? (
+                        <span className="flex items-center gap-1 text-emerald-400">
+                          <CheckCircle2Icon className="size-3" /> Passwords match
+                        </span>
+                      ) : (
+                        <span className="text-destructive">Passwords do not match</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {pwError !== null && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive animate-in fade-in-50"
+                  >
+                    <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
+                    <span>{pwError}</span>
+                  </div>
+                )}
+
+                <DialogFooter className="pt-2 sm:justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setPwOpen(false)}
+                    disabled={pwBusy}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={
+                      pwBusy || oldPw.length === 0 || newPw.length === 0 || confirmPw.length === 0
+                    }
+                    componentId="settings.account.update_password"
+                    className="bg-gradient-to-r from-[#ffaa07] to-[#f59e0b] font-semibold text-[#061212] shadow-md shadow-[#ffaa07]/20 hover:from-[#ffb82e] hover:to-[#ffaa07] transition-all disabled:opacity-50"
+                  >
+                    {pwBusy ? "Changing…" : "Change password"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+
+            {pwDone && (
+              <div className="space-y-4 py-3 text-center">
+                <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-400">
+                  <CheckCircle2Icon className="size-8" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Your account password has been successfully updated. You can now use your new credentials on future sign-ins.
+                </p>
+                <DialogFooter className="sm:justify-center pt-2">
+                  <Button
+                    className="bg-gradient-to-r from-[#ffaa07] to-[#f59e0b] font-semibold text-[#061212] px-6 shadow-md shadow-[#ffaa07]/20 hover:from-[#ffb82e] hover:to-[#ffaa07]"
+                    onClick={() => setPwOpen(false)}
+                  >
+                    Done
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
     </Section>
   );
 }
