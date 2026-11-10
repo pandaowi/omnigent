@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "@/lib/routing";
 import { useSession } from "@/hooks/useSession";
 import { isOwnerLevel } from "@/lib/permissionsApi";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useSessionHostOnline, useSessionRunnerOnline } from "@/hooks/RunnerHealthProvider";
 import { useChatStore } from "@/store/chatStore";
 import {
@@ -256,6 +257,7 @@ export function FilesPanel({
 }: FilesPanelProps) {
   const { conversationId: routeId } = useParams<{ conversationId: string }>();
   const conversationId = sessionId ?? routeId;
+  const isAdmin = useIsAdmin();
   // The runner went offline (e.g. its host restarted): `sessionStatus`
   // is "failed", set by `_on_runner_disconnect` server-side when the
   // runner's tunnel drops (and also client-side in chatStore when the
@@ -501,7 +503,7 @@ export function FilesPanel({
             current={workingDir}
             workspace={workspaceRoot}
             hostId={session?.hostId ?? null}
-            canBrowseOutside={isOwnerLevel(session?.permissionLevel ?? null)}
+            canBrowseOutside={isAdmin && isOwnerLevel(session?.permissionLevel ?? null)}
             reach={envQuery.data?.reachable ?? null}
             onNavigate={navigateTo}
             error={locationError}

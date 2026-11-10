@@ -16,6 +16,10 @@ import {
   ArrowLeftIcon,
   ChevronDownIcon,
   SparklesIcon,
+  SearchIcon,
+  SlidersHorizontalIcon,
+  ShieldCheckIcon,
+  TerminalIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageScroll } from "@/components/PageScroll";
@@ -120,6 +124,39 @@ export function MembersPage() {
   const [resetCopied, setResetCopied] = useState(false);
   const [deletingUser, setDeletingUser] = useState<AccountListEntry | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
+
+  // Search and Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterDivision, setFilterDivision] = useState<string>("all");
+  const [filterRole, setFilterRole] = useState<string>("all");
+
+  // Filtered users calculation
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    return users.filter((u) => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchId = u.id.toLowerCase().includes(q);
+        const matchOrg = u.organizations?.some((o) => o.name.toLowerCase().includes(q));
+        if (!matchId && !matchOrg) return false;
+      }
+      if (filterDivision !== "all") {
+        const inOrg = u.organizations?.some((o) => o.id === filterDivision);
+        if (!inOrg) return false;
+      }
+      if (filterRole === "admin" && !u.is_admin) return false;
+      if (filterRole === "supervisor") {
+        const isSpv = u.organizations?.some((o) => o.role === "supervisor" || o.role === "admin" || o.role === "lead");
+        if (!isSpv) return false;
+      }
+      if (filterRole === "member") {
+        if (u.is_admin) return false;
+        const isSpv = u.organizations?.some((o) => o.role === "supervisor" || o.role === "admin" || o.role === "lead");
+        if (isSpv) return false;
+      }
+      return true;
+    });
+  }, [users, searchQuery, filterDivision, filterRole]);
 
   // Load identities and admin role
   useEffect(() => {
@@ -507,10 +544,14 @@ export function MembersPage() {
 
   const formatEpoch = (epoch: number | null | undefined): string => {
     if (!epoch) return "Never";
-    return new Date(epoch * 1000).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    const d = new Date(epoch * 1000);
+    const day = d.getDate();
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${day} ${month} ${year}, ${hours}:${minutes}`;
   };
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -919,165 +960,246 @@ export function MembersPage() {
         </div>
       )}
 
+      {/* Search and Filters Toolbar */}
+      <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex flex-1 flex-wrap items-center gap-2.5">
+          {/* Search Box */}
+          <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Search member or division..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-xs bg-card/60"
+            />
+          </div>
+
+          {/* Division Filter */}
+          <select
+            value={filterDivision}
+            onChange={(e) => setFilterDivision(e.target.value)}
+            className="h-8 rounded-md border border-input bg-card/60 px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
+          >
+            <option value="all">All Divisions</option>
+            {organizations.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Role Filter */}
+          <select
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            className="h-8 rounded-md border border-input bg-card/60 px-2.5 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
+          >
+            <option value="all">All Roles</option>
+            <option value="admin">Global Admin</option>
+            <option value="supervisor">Supervisor</option>
+            <option value="member">Member</option>
+          </select>
+        </div>
+
+        {/* Counter */}
+        <div className="text-xs text-muted-foreground whitespace-nowrap font-medium self-end sm:self-center">
+          Showing <span className="font-semibold text-foreground">{filteredUsers.length}</span> of {users?.length || 0} members
+        </div>
+      </div>
+
       {/* Members Table */}
-      <div className="rounded-xl border border-border shadow-sm overflow-x-auto bg-card">
-        <table className="w-full text-sm min-w-[720px]">
-          <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wider border-b">
+      <div className="rounded-xl border border-border shadow-xs overflow-x-auto bg-card">
+        <table className="w-full text-sm min-w-[780px]">
+          <thead className="bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider border-b">
             <tr>
               <th className="px-4 py-3 text-left font-semibold">Member</th>
               <th className="px-3 py-3 text-left font-semibold">Role & Divisi</th>
               <th className="px-3 py-3 text-left font-semibold">Runtime / Runner</th>
               <th className="px-3 py-3 text-left font-semibold">Model Policy</th>
-              <th className="px-3 py-3 text-left font-semibold">Last Login</th>
-              <th className="px-4 py-3 text-right font-semibold">Actions</th>
+              <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">Last Login</th>
+              <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {users && users.length > 0 ? (
-              users.map((u) => {
+            {filteredUsers && filteredUsers.length > 0 ? (
+              filteredUsers.map((u) => {
                 const exec = executionMap[u.id];
                 const assignedHost = hosts.find((h) => h.host_id === exec?.host_id);
                 
-                // Identify runtime display
-                let runtimeBadgeLabel = assignedHost?.name || "Assigned";
-                if (assignedHost) {
-                  const allowedH = exec?.allowed_harnesses || (exec?.harness ? [exec.harness] : []);
-                  const hasAgy =
-                    allowedH.some((h) => h.includes("antigravity")) ||
-                    (exec?.allowed_models && exec.allowed_models.some((m) => m.startsWith("gemini-")));
-                  const hasCodex =
-                    allowedH.some((h) => h.includes("codex")) ||
-                    (exec?.allowed_models && exec.allowed_models.some((m) => m.startsWith("gpt-")));
+                // Identify harnesses assigned
+                const allowedH = exec?.allowed_harnesses || (exec?.harness ? [exec.harness] : []);
+                const hasAgy =
+                  allowedH.some((h) => h.includes("antigravity")) ||
+                  (exec?.allowed_models && exec.allowed_models.some((m) => m.startsWith("gemini-")));
+                const hasCodex =
+                  allowedH.some((h) => h.includes("codex")) ||
+                  (exec?.allowed_models && exec.allowed_models.some((m) => m.startsWith("gpt-")));
 
-                  if (hasAgy && hasCodex) {
-                    runtimeBadgeLabel = `▲ Antigravity + ⌨ Codex · ${assignedHost.name}`;
-                  } else if (hasAgy) {
-                    runtimeBadgeLabel = `▲ Antigravity · ${assignedHost.name}`;
-                  } else if (hasCodex) {
-                    runtimeBadgeLabel = `⌨ Codex · ${assignedHost.name}`;
-                  } else {
-                    runtimeBadgeLabel = `${assignedHost.name}`;
-                  }
-                }
+                const isSupervisorRole = u.organizations?.some(
+                  (o) => o.role === "supervisor" || o.role === "admin" || o.role === "lead"
+                );
 
                 return (
-                  <tr key={u.id} className="hover:bg-muted/30 transition-colors">
+                  <tr key={u.id} className="hover:bg-muted/25 transition-colors">
                     {/* User Identity */}
-                    <td className="px-4 py-3 align-middle">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                    <td className="px-4 py-3.5 align-middle">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 shadow-xs border ${
+                            u.is_admin
+                              ? "bg-purple-500/15 text-purple-400 border-purple-500/30"
+                              : isSupervisorRole
+                              ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                              : "bg-muted text-muted-foreground border-border/80"
+                          }`}
+                        >
                           {u.id.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => openMemberExecution(u)}
-                            className="font-semibold text-foreground text-sm hover:underline text-left font-mono"
-                          >
-                            {u.id}
-                          </button>
-                          {u.id === meId && (
-                            <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
-                          )}
-                          {!u.has_password && (
-                            <Badge variant="outline" className="ml-1.5 text-[10px] py-0">
-                              External
-                            </Badge>
-                          )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => openMemberExecution(u)}
+                              className="font-semibold text-foreground text-sm hover:underline text-left font-mono truncate max-w-[150px]"
+                              title={u.id}
+                            >
+                              {u.id}
+                            </button>
+                            {u.id === meId && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium leading-none">
+                                you
+                              </span>
+                            )}
+                            {!u.has_password && (
+                              <Badge variant="outline" className="text-[10px] py-0 px-1 leading-tight">
+                                External
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
 
                     {/* Role & Divisi */}
-                    <td className="px-3 py-3 align-middle">
+                    <td className="px-3 py-3.5 align-middle">
                       <div className="flex flex-col gap-1 items-start">
                         {u.is_admin ? (
-                          <Badge className="bg-purple-900/40 text-purple-300 border-purple-500/50 text-xs font-semibold">
-                            Global Admin
-                          </Badge>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                            <ShieldCheckIcon className="h-3 w-3" /> Global Admin
+                          </span>
                         ) : u.organizations && u.organizations.length > 0 ? (
                           u.organizations.map((org) => {
                             const isSpv = org.role === "supervisor" || org.role === "admin" || org.role === "lead";
                             return (
-                              <Badge
+                              <span
                                 key={org.id}
-                                variant={isSpv ? "outline" : "secondary"}
-                                className={`text-xs ${
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                                   isSpv
-                                    ? "border-blue-500/60 text-blue-400 bg-blue-950/40 font-medium"
-                                    : ""
+                                    ? "border-blue-500/40 text-blue-400 bg-blue-950/40"
+                                    : "border-border/60 text-muted-foreground bg-muted/40"
                                 }`}
                               >
-                                {org.name} ({isSpv ? "Supervisor" : "Member"})
-                              </Badge>
+                                <span className="font-semibold text-foreground/90">{org.name}</span>
+                                <span className="text-[10px] opacity-75">({isSpv ? "Supervisor" : "Member"})</span>
+                              </span>
                             );
                           })
                         ) : (
-                          <Badge variant="secondary" className="text-xs">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted/40 text-muted-foreground border border-border/50">
                             Member
-                          </Badge>
+                          </span>
                         )}
                       </div>
                     </td>
 
                     {/* Runtime / Runner Column */}
-                    <td className="px-3 py-3 align-middle">
+                    <td className="px-3 py-3.5 align-middle">
                       {assignedHost ? (
-                        <Badge
-                          variant="outline"
-                          className="text-xs font-medium flex items-center gap-1.5 w-fit py-1 px-2.5"
-                        >
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              assignedHost.status === "online" ? "bg-emerald-500" : "bg-muted-foreground"
-                            }`}
-                          />
-                          <span>{runtimeBadgeLabel}</span>
-                        </Badge>
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`h-2 w-2 rounded-full shrink-0 ${
+                                assignedHost.status === "online"
+                                  ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                                  : "bg-zinc-400"
+                              }`}
+                            />
+                            <span className="font-mono text-xs font-medium text-foreground truncate max-w-[200px]" title={assignedHost.name}>
+                              {assignedHost.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {hasAgy && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/25">
+                                <SparklesIcon className="h-2.5 w-2.5" /> Antigravity
+                              </span>
+                            )}
+                            {hasCodex && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border border-cyan-500/25">
+                                <TerminalIcon className="h-2.5 w-2.5" /> Codex
+                              </span>
+                            )}
+                            {!hasAgy && !hasCodex && (
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                Default Harness
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground italic">None assigned</span>
+                        <span className="text-xs text-muted-foreground/60 italic flex items-center gap-1">
+                          <ServerIcon className="h-3 w-3 opacity-30" /> None assigned
+                        </span>
                       )}
                     </td>
 
                     {/* Allowed Models Column */}
-                    <td className="px-3 py-3 align-middle">
+                    <td className="px-3 py-3.5 align-middle">
                       {exec?.allowed_models && exec.allowed_models.length > 0 ? (
-                        <div className="flex flex-wrap gap-1 max-w-xs">
+                        <div className="flex flex-wrap gap-1 max-w-[220px]">
                           {exec.allowed_models.slice(0, 2).map((m) => (
-                            <Badge key={m} variant="secondary" className="text-[10px] py-0 px-1.5 font-mono">
-                              {m}
-                            </Badge>
+                            <span
+                              key={m}
+                              title={m}
+                              className="inline-block px-1.5 py-0.5 rounded bg-muted/70 text-foreground font-mono text-[10px] border border-border/50 truncate max-w-[120px]"
+                            >
+                              {m.includes("/") ? m.split("/")[1] : m}
+                            </span>
                           ))}
                           {exec.allowed_models.length > 2 && (
-                            <Badge variant="outline" className="text-[10px] py-0 px-1 font-mono">
+                            <span
+                              className="inline-block px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground font-mono text-[10px] border border-border/40"
+                              title={exec.allowed_models.slice(2).join(", ")}
+                            >
                               +{exec.allowed_models.length - 2} more
-                            </Badge>
+                            </span>
                           )}
                         </div>
                       ) : assignedHost ? (
-                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/25">
                           All Models
-                        </Badge>
+                        </span>
                       ) : (
-                        <span className="text-xs text-muted-foreground italic">—</span>
+                        <span className="text-xs text-muted-foreground/60 italic">—</span>
                       )}
                     </td>
 
                     {/* Last login */}
-                    <td className="px-3 py-3 align-middle text-xs text-muted-foreground">
+                    <td className="px-3 py-3.5 align-middle whitespace-nowrap font-mono text-xs text-muted-foreground">
                       {formatEpoch(u.last_login_at)}
                     </td>
 
                     {/* Actions */}
-                    <td className="px-4 py-3 align-middle text-right">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="px-4 py-3.5 align-middle text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs px-2.5 font-medium"
+                          className="h-7 text-xs px-2.5 font-medium border-border/80 hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all shadow-xs"
                           onClick={() => openMemberExecution(u)}
                         >
-                          <CpuIcon className="mr-1 h-3.5 w-3.5 text-primary" />
+                          <SlidersHorizontalIcon className="mr-1.5 h-3.5 w-3.5 text-primary" />
                           Execution
                         </Button>
 
@@ -1086,19 +1208,19 @@ export function MembersPage() {
                             {(!isSupervisor || !u.is_admin) && (
                               <Button
                                 variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                 onClick={() => setResettingUser(u)}
                                 title="Reset Password"
                               >
-                                <KeyRoundIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                                <KeyRoundIcon className="h-3.5 w-3.5" />
                               </Button>
                             )}
                             {u.id !== meId && (!isSupervisor || !u.is_admin) && (
                               <Button
                                 variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                 onClick={() => setDeletingUser(u)}
                                 title="Delete User"
                               >
@@ -1114,8 +1236,28 @@ export function MembersPage() {
               })
             ) : (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">
-                  {users === null ? "Loading members..." : "No members found."}
+                <td colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
+                  {users === null ? (
+                    "Loading members..."
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <span>No members match your search or filter criteria.</span>
+                      {(searchQuery || filterDivision !== "all" || filterRole !== "all") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs h-7 text-primary hover:underline"
+                          onClick={() => {
+                            setSearchQuery("");
+                            setFilterDivision("all");
+                            setFilterRole("all");
+                          }}
+                        >
+                          Clear filters
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             )}

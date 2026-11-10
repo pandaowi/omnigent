@@ -659,7 +659,7 @@ export function DivisionsPage() {
 
       {/* ── ALLOCATE RUNNER & MODELS MODAL (ADMIN ONLY) ─────────────── */}
       <Dialog open={showAssignRunnerModal} onOpenChange={setShowAssignRunnerModal}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ServerIcon className="h-5 w-5 text-primary" />
@@ -727,7 +727,7 @@ export function DivisionsPage() {
                       No models detected on this runner.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-md p-2 max-h-48 overflow-y-auto bg-muted/10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 border rounded-md p-2.5 max-h-60 overflow-y-auto bg-muted/10">
                       {allAvailableModels.map((model) => {
                         const checked = selectedModels.includes(model);
                         return (

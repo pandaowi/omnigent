@@ -972,6 +972,43 @@ def register_resources_routes(
             return True, "/" + client_path.lstrip("/")
         return False, client_path
 
+    def _enforce_division_filesystem_boundary(
+        user_id: str | None,
+        requested_path: str,
+        is_absolute: bool,
+    ) -> None:
+        """Enforce that non-admin users (supervisors and members) can only browse
+        files within their assigned division workspaces.
+        """
+        if not user_id or not is_absolute:
+            return
+        is_admin = permission_store.is_admin(user_id) if permission_store else False
+        if is_admin:
+            return
+
+        import os
+        import re
+        from omnigent.server.organization_store import get_organization_store
+
+        org_store = get_organization_store()
+        user_orgs = org_store.get_user_organizations(user_id)
+        division_slugs = (
+            [
+                re.sub(r"[^a-zA-Z0-9_-]", "-", o.get("name") or "general").strip("-").lower()
+                for o in user_orgs
+            ]
+            if user_orgs
+            else ["general"]
+        )
+
+        norm = os.path.normpath(requested_path)
+        allowed = any(f"/workspaces/{d_slug}" in norm for d_slug in division_slugs)
+        if not allowed:
+            raise OmnigentError(
+                "Access denied: You are restricted to browsing files within your division workspace.",
+                code=ErrorCode.FORBIDDEN,
+            )
+
     async def _authorize_absolute_browse(
         conversation: Conversation,
         absolute_path: str,
@@ -2790,6 +2827,8 @@ def register_resources_routes(
                 "Access denied: Only session owners can search outside the workspace.",
                 code=ErrorCode.FORBIDDEN,
             )
+        user_id = _get_user_id(request, auth_provider)
+        _enforce_division_filesystem_boundary(user_id, path, absolute)
 
         qs = urllib.parse.urlencode(params)
         suffix = ""
@@ -3052,6 +3091,8 @@ def register_resources_routes(
                 "Access denied: Only session owners can browse outside the workspace.",
                 code=ErrorCode.FORBIDDEN,
             )
+        user_id = _get_user_id(request, auth_provider)
+        _enforce_division_filesystem_boundary(user_id, relative_path, absolute)
 
         # The owner may browse a workspace symlink's outside target by absolute
         # path already, so the runner is told it may follow the link; everyone
@@ -3122,7 +3163,9 @@ def register_resources_routes(
         :returns: Write result.
         """
         body = await request.json()
-        _, relative_path = _resolve_browse_path(request, relative_path)
+        absolute, relative_path = _resolve_browse_path(request, relative_path)
+        user_id = _get_user_id(request, auth_provider)
+        _enforce_division_filesystem_boundary(user_id, relative_path, absolute)
         path = _mutating_runner_path(session_id, environment_id, relative_path)
         return await _proxy_fs_response(
             session_id,
@@ -3155,7 +3198,9 @@ def register_resources_routes(
         :returns: Edit result.
         """
         body = await request.json()
-        _, relative_path = _resolve_browse_path(request, relative_path)
+        absolute, relative_path = _resolve_browse_path(request, relative_path)
+        user_id = _get_user_id(request, auth_provider)
+        _enforce_division_filesystem_boundary(user_id, relative_path, absolute)
         path = _mutating_runner_path(session_id, environment_id, relative_path)
         return await _proxy_fs_response(
             session_id,
@@ -3187,7 +3232,9 @@ def register_resources_routes(
         :param relative_path: Path relative to environment root.
         :returns: Delete result.
         """
-        _, relative_path = _resolve_browse_path(request, relative_path)
+        absolute, relative_path = _resolve_browse_path(request, relative_path)
+        user_id = _get_user_id(request, auth_provider)
+        _enforce_division_filesystem_boundary(user_id, relative_path, absolute)
         path = _mutating_runner_path(session_id, environment_id, relative_path)
         return await _proxy_fs_response(
             session_id,

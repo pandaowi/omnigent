@@ -33,6 +33,7 @@ interface HostFilesystemResponse {
   object: string;
   data: HostFilesystemEntry[];
   has_more: boolean;
+  path?: string;
 }
 
 /**
@@ -156,6 +157,10 @@ export interface HostDirectoryListing {
    * ``MAX_PAGES`` pages, so this listing is incomplete.
    */
   truncated: boolean;
+  /**
+   * Canonical resolved path on the host, provided by the server.
+   */
+  path?: string;
 }
 
 // Request the server's max page size: the endpoint defaults to 20
@@ -185,6 +190,7 @@ async function fetchHostFilesystem(hostId: string, path: string): Promise<HostDi
   const entries: HostFilesystemEntry[] = [];
   let after: string | null = null;
   let truncated = false;
+  let resolvedPath: string | undefined = undefined;
   // Sequential by necessity: each page's cursor is the previous
   // page's last entry path, so the requests can't be parallelized.
   /* oxlint-disable no-await-in-loop */
@@ -201,6 +207,9 @@ async function fetchHostFilesystem(hostId: string, path: string): Promise<HostDi
       throw err;
     }
     const body = (await res.json()) as HostFilesystemResponse;
+    if (body.path) {
+      resolvedPath = body.path;
+    }
     entries.push(...body.data);
     // Empty-page guard is defensive: a bad cursor must not loop.
     if (!body.has_more || body.data.length === 0) {
@@ -214,7 +223,7 @@ async function fetchHostFilesystem(hostId: string, path: string): Promise<HostDi
     }
   }
   /* oxlint-enable no-await-in-loop */
-  return { entries, truncated };
+  return { entries, truncated, path: resolvedPath };
 }
 
 /**

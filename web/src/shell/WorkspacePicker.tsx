@@ -552,7 +552,9 @@ export function WorkspacePicker({
   // resolved back to an absolute path. null while loading or for an
   // empty / placeholder listing.
   const listedAbsolute =
-    !isPlaceholderData && data && data.entries.length > 0 ? parentOf(data.entries[0].path) : null;
+    !isPlaceholderData && data
+      ? (data.path ?? (data.entries.length > 0 ? parentOf(data.entries[0].path) : null))
+      : null;
 
   // The absolute path the picker currently represents — used for
   // breadcrumbs and the selection callback. An absolute path is taken

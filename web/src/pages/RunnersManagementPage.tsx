@@ -234,57 +234,87 @@ export function RunnersManagementPage() {
 
       {/* ── MODAL: MANAGE HOST ASSIGNMENTS ─────────────────────── */}
       <Dialog open={selectedHost !== null} onOpenChange={(open) => !open && setSelectedHost(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ServerIcon className="h-5 w-5 text-primary" />
-              Access & Allocations: {selectedHost?.name}
-            </DialogTitle>
-            <DialogDescription>
-              View and manage which divisions and members are authorized to execute on this runner.
+        <DialogContent className="sm:max-w-3xl max-h-[88vh] flex flex-col p-6">
+          <DialogHeader className="pb-3 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2.5 text-lg font-semibold">
+                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                  <ServerIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span>{selectedHost?.name}</span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                        selectedHost?.status === "online"
+                          ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                          : "bg-muted text-muted-foreground border-border"
+                      }`}
+                    >
+                      <span className={`size-1.5 rounded-full ${selectedHost?.status === "online" ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+                      {selectedHost?.status === "online" ? "Online" : "Offline"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono font-normal mt-0.5">
+                    Host ID: {selectedHost?.host_id}
+                  </p>
+                </div>
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              Configure organizational divisions and individual users permitted to run workloads on this compute machine.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            {/* Assigned Divisions List */}
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                <Building2Icon className="h-3.5 w-3.5" />
-                Assigned Divisions ({assignments?.organizations.length || 0})
-              </h4>
+          <div className="flex-1 overflow-y-auto space-y-6 py-4 pr-1">
+            {/* ── SECTION 1: DIVISIONS ALLOCATION ── */}
+            <div className="rounded-xl border border-border/80 bg-card p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                  <Building2Icon className="h-4 w-4 text-primary" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Assigned Divisions
+                  </h4>
+                  <Badge variant="secondary" className="text-xs h-5 px-1.5 font-semibold">
+                    {assignments?.organizations.length || 0}
+                  </Badge>
+                </div>
+              </div>
+
               {!assignments ? (
-                <div className="text-xs text-muted-foreground py-1">Loading…</div>
+                <div className="text-xs text-muted-foreground py-4 text-center">Loading division assignments…</div>
               ) : assignments.organizations.length === 0 ? (
-                <div className="text-xs text-muted-foreground py-2 text-center border rounded-md bg-muted/10">
-                  No divisions assigned to this runner yet.
+                <div className="text-xs text-muted-foreground py-5 text-center border border-dashed rounded-lg bg-muted/10">
+                  No divisions assigned to this runner yet. Assign a division below to allow its supervisors and members access.
                 </div>
               ) : (
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
                   {assignments.organizations.map((org) => (
                     <div
                       key={org.organization_id}
-                      className="flex items-center justify-between bg-muted/30 px-3 py-1.5 rounded-lg text-xs border"
+                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
                     >
-                      <div className="flex items-center gap-2">
-                        <Building2Icon className="h-3.5 w-3.5 text-primary" />
-                        <span className="font-medium">{org.name}</span>
-                        {org.allowed_models && org.allowed_models.length > 0 ? (
-                          <Badge variant="outline" className="text-[10px] py-0 px-1 font-mono">
-                            {org.allowed_models.length} model(s)
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] py-0 px-1 text-emerald-600 border-emerald-600/30"
-                          >
-                            All Models
-                          </Badge>
-                        )}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <Building2Icon className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span className="font-semibold text-xs truncate text-foreground">{org.name}</span>
+                        </div>
+                        <div>
+                          {org.allowed_models && org.allowed_models.length > 0 ? (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono bg-primary/10 text-primary border border-primary/20">
+                              {org.allowed_models.length} model(s) restricted
+                            </span>
+                          ) : (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              All Models Allowed
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-xs text-destructive hover:bg-destructive/10"
+                        className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 shrink-0 ml-2"
                         onClick={() => handleUnassignOrg(org.organization_id)}
                         disabled={actionLoading}
                       >
@@ -294,53 +324,55 @@ export function RunnersManagementPage() {
                   ))}
                 </div>
               )}
-            </div>
 
-            {/* Quick Assign Division Form */}
-            {organizations.length > 0 && (
-              <div className="pt-2 border-t space-y-2">
-                <label className="text-xs font-medium text-foreground">
-                  Assign Division to this Runner
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm"
-                    value={assignOrgId}
-                    onChange={(e) => setAssignOrgId(e.target.value)}
-                  >
-                    <option value="">Select a division…</option>
-                    {organizations
-                      .filter(
-                        (org) =>
-                          !assignments?.organizations.some(
-                            (ao) => ao.organization_id === org.id,
-                          ),
-                      )
-                      .map((org) => (
-                        <option key={org.id} value={org.id}>
-                          {org.name}
-                        </option>
-                      ))}
-                  </select>
+              {/* Quick Assign Division Bar */}
+              {organizations.length > 0 && (
+                <div className="pt-3 border-t border-border/50 flex flex-col sm:flex-row items-center gap-2">
+                  <div className="flex-1 w-full sm:w-auto">
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                      value={assignOrgId}
+                      onChange={(e) => setAssignOrgId(e.target.value)}
+                    >
+                      <option value="">-- Choose Division to Allocate --</option>
+                      {organizations
+                        .filter(
+                          (org) =>
+                            !assignments?.organizations.some(
+                              (ao) => ao.organization_id === org.id,
+                            ),
+                        )
+                        .map((org) => (
+                          <option key={org.id} value={org.id}>
+                            {org.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                   <Button
                     size="sm"
-                    className="h-8 text-xs whitespace-nowrap"
+                    className="h-9 px-4 text-xs font-medium whitespace-nowrap w-full sm:w-auto"
                     onClick={handleAssignOrg}
                     disabled={!assignOrgId || actionLoading}
                   >
-                    Assign
+                    Allocate Division
                   </Button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Direct Users List */}
-            <div className="pt-2 border-t">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <UsersIcon className="h-3.5 w-3.5" />
-                  Assigned Members ({assignments?.users.length || 0})
-                </h4>
+            {/* ── SECTION 2: DIRECT MEMBERS ACCESS ── */}
+            <div className="rounded-xl border border-border/80 bg-card p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                  <UsersIcon className="h-4 w-4 text-primary" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Direct Member Overrides
+                  </h4>
+                  <Badge variant="secondary" className="text-xs h-5 px-1.5 font-semibold">
+                    {assignments?.users.length || 0}
+                  </Badge>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -350,44 +382,49 @@ export function RunnersManagementPage() {
                   className="text-xs text-primary hover:underline flex items-center gap-1 font-medium"
                 >
                   <SlidersHorizontalIcon className="h-3 w-3" />
-                  Manage in Members
+                  Manage in Members Settings
                 </button>
               </div>
+
               {!assignments ? (
-                <div className="text-xs text-muted-foreground py-2">Loading assignments…</div>
+                <div className="text-xs text-muted-foreground py-4 text-center">Loading member assignments…</div>
               ) : assignments.users.length === 0 ? (
-                <div className="text-xs text-muted-foreground py-2 text-center border rounded-lg bg-muted/10">
-                  No individual members assigned. Members can access this runner via their division or individual execution settings.
+                <div className="text-xs text-muted-foreground py-5 text-center border border-dashed rounded-lg bg-muted/10">
+                  No individual member overrides. Members inherit access automatically through their assigned divisions.
                 </div>
               ) : (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
                   {assignments.users.map((u) => (
                     <div
                       key={u.user_id}
-                      className="flex items-center justify-between bg-muted/30 px-3 py-1.5 rounded-lg text-xs border"
+                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-medium">{u.user_id}</span>
-                        {u.allowed_models && u.allowed_models.length > 0 ? (
-                          <Badge variant="outline" className="text-[10px] py-0 px-1 font-mono">
-                            {u.allowed_models.length} model(s)
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] py-0 px-1 text-emerald-600 border-emerald-600/30"
-                          >
-                            All Models
-                          </Badge>
-                        )}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[10px] shrink-0">
+                            {u.user_id.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-mono font-semibold text-xs truncate text-foreground">{u.user_id}</span>
+                        </div>
+                        <div>
+                          {u.allowed_models && u.allowed_models.length > 0 ? (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono bg-primary/10 text-primary border border-primary/20">
+                              {u.allowed_models.length} model(s) allowed
+                            </span>
+                          ) : (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              All Models Allowed
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-xs text-destructive hover:bg-destructive/10"
+                        className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 shrink-0 ml-2"
                         onClick={() => handleUnassignUser(u.user_id)}
                         disabled={actionLoading}
-                        title="Revoke individual access"
+                        title="Revoke individual override"
                       >
                         Remove
                       </Button>
@@ -398,7 +435,7 @@ export function RunnersManagementPage() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="pt-3 border-t">
             <Button variant="outline" size="sm" onClick={() => setSelectedHost(null)}>
               Done
             </Button>

@@ -2975,7 +2975,10 @@ export function NewChatLandingScreen() {
   // Deriving home from it would seed the old host's path and lock the
   // once-per-host guard below — treat placeholder data as not-yet-loaded.
   const derivedHome = useMemo(
-    () => (homeListingIsPlaceholder ? null : deriveHomeDir(homeListing?.entries ?? [])),
+    () =>
+      homeListingIsPlaceholder
+        ? null
+        : (homeListing?.path ?? deriveHomeDir(homeListing?.entries ?? [])),
     [homeListing, homeListingIsPlaceholder],
   );
 

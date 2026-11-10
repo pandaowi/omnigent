@@ -826,11 +826,6 @@ async def _resolve_and_enforce_user_workspace(
 
     org_store = get_organization_store()
     user_orgs = org_store.get_user_organizations(user_id)
-    division_slug = (
-        re.sub(r"[^a-zA-Z0-9_-]", "-", user_orgs[0]["name"]).strip("-").lower()
-        if user_orgs
-        else "general"
-    )
     user_slug = re.sub(r"[^a-zA-Z0-9_-]", "-", user_id.split("@")[0]).strip("-").lower()
 
     try:
@@ -843,8 +838,18 @@ async def _resolve_and_enforce_user_workspace(
     except Exception:
         canonical_home = "/home/coder"
 
-    canonical_division_root = os.path.normpath(f"{canonical_home}/workspaces/{division_slug}")
-    canonical_user_root = os.path.normpath(f"{canonical_home}/workspaces/{division_slug}/{user_slug}")
+    # Resolve all division roots the user belongs to (completely dynamic, no hard code)
+    division_roots: list[str] = []
+    if user_orgs:
+        for uo in user_orgs:
+            d_name = uo.get("name") or "general"
+            d_slug = re.sub(r"[^a-zA-Z0-9_-]", "-", d_name).strip("-").lower()
+            division_roots.append(os.path.normpath(f"{canonical_home}/workspaces/{d_slug}"))
+    else:
+        division_roots.append(os.path.normpath(f"{canonical_home}/workspaces/general"))
+
+    canonical_division_root = division_roots[0]
+    canonical_user_root = os.path.normpath(f"{canonical_division_root}/{user_slug}")
 
     # Ensure user workspace root exists on the host
     try:
@@ -868,29 +873,27 @@ async def _resolve_and_enforce_user_workspace(
         resolved_path = path
 
     norm_path = os.path.normpath(resolved_path)
-    boundary_user = canonical_user_root if canonical_user_root.endswith("/") else canonical_user_root + "/"
-    boundary_div = canonical_division_root if canonical_division_root.endswith("/") else canonical_division_root + "/"
 
-    is_supervisor = org_store.is_user_supervisor(user_id)
-
-    # Supervisors can access/create anywhere in their division or their user workspace
-    # Regular members are strictly restricted to their user workspace
-    if is_supervisor:
-        allowed = (
-            norm_path == canonical_division_root
-            or norm_path.startswith(boundary_div)
-            or norm_path == canonical_user_root
-            or norm_path.startswith(boundary_user)
-        )
-    else:
-        allowed = norm_path == canonical_user_root or norm_path.startswith(boundary_user)
+    # All division members (supervisors and staff) are permitted within their division workspace(s)
+    allowed = False
+    for div_root in division_roots:
+        b_div = div_root if div_root.endswith("/") else div_root + "/"
+        b_user = os.path.normpath(f"{div_root}/{user_slug}")
+        b_user_prefix = b_user if b_user.endswith("/") else b_user + "/"
+        if (
+            norm_path == div_root
+            or norm_path.startswith(b_div)
+            or norm_path == b_user
+            or norm_path.startswith(b_user_prefix)
+        ):
+            allowed = True
+            break
 
     if not allowed:
         action = "create directory" if is_create else "access folder"
-        restricted_boundary = canonical_division_root if is_supervisor else canonical_user_root
         raise HTTPException(
             status_code=403,
-            detail=f"Forbidden: {action} is restricted to your division workspace ({restricted_boundary})",
+            detail=f"Forbidden: {action} is restricted to your division workspace ({canonical_division_root})",
         )
 
     return norm_path
@@ -1922,6 +1925,7 @@ def create_hosts_router(
             "object": "list",
             "data": result.get("entries", []),
             "has_more": bool(result.get("has_more", False)),
+            "path": path,
         }
 
     @router.post("/hosts/{host_id}/directories")

@@ -1,10 +1,16 @@
-// localStorage-backed recent workspace directories, keyed per host
-// (paths are host-specific). Feeds the combobox "Recent" group.
+// localStorage-backed recent workspace directories, keyed per host and user
+// (paths are host-specific and user-scoped). Feeds the combobox "Recent" group.
 
 import { useCallback, useMemo, useState } from "react";
+import { getCurrentUserId, getCurrentIsAdmin, getCurrentOrganizations } from "@/lib/identity";
 
-const STORAGE_KEY = "omnigent:recent-workspaces";
+const BASE_STORAGE_KEY = "omnigent:recent-workspaces";
 const MAX_PER_HOST = 8;
+
+function getStorageKey(): string {
+  const userId = getCurrentUserId();
+  return userId ? `${BASE_STORAGE_KEY}:${userId}` : BASE_STORAGE_KEY;
+}
 
 // Map of host_id -> most-recent-first list of absolute paths.
 type RecentMap = Record<string, string[]>;
@@ -12,7 +18,7 @@ type RecentMap = Record<string, string[]>;
 function readAll(): RecentMap {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(getStorageKey());
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (parsed === null || typeof parsed !== "object") return {};
@@ -33,7 +39,7 @@ function readAll(): RecentMap {
 function writeAll(map: RecentMap): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(map));
   } catch {
     // Quota exceeded or storage disabled — non-fatal; recents just
     // stop persisting until the next successful write.
@@ -41,7 +47,22 @@ function writeAll(map: RecentMap): void {
 }
 
 export function readRecentWorkspaces(hostId: string | null): string[] {
-  return hostId === null ? [] : (readAll()[hostId] ?? []);
+  if (hostId === null) return [];
+  const list = readAll()[hostId] ?? [];
+  const isAdmin = getCurrentIsAdmin();
+  if (isAdmin) return list;
+
+  // For non-admin (supervisors and members), strictly scope recents to their division
+  const orgs = getCurrentOrganizations();
+  if (!orgs || orgs.length === 0) return list;
+
+  const divisionSlugs = orgs.map((o) =>
+    o.name.replace(/[^a-zA-Z0-9_-]/g, "-").replace(/^-+|-+$/g, "").toLowerCase()
+  );
+
+  return list.filter((p) =>
+    divisionSlugs.some((slug) => p.includes(`/workspaces/${slug}`))
+  );
 }
 
 export interface RecentWorkspaces {
