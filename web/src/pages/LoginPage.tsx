@@ -155,68 +155,55 @@ export function LoginPage() {
 
   return (
     <div
-      className="relative flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-background p-4 sm:p-6 lg:p-8"
+      className="auth-page relative flex h-dvh min-h-dvh w-full items-center justify-center overflow-y-auto overflow-x-hidden bg-background p-4 sm:p-6"
       style={{
         paddingTop: "max(1rem, var(--omnigent-safe-top))",
         paddingBottom: "max(1rem, var(--omnigent-safe-bottom))",
       }}
     >
-      {/* Decorative ambient background glows with brand teal (#09747e) and warm amber (#ffaa07) */}
-      <div
-        className="pointer-events-none absolute -left-32 -top-32 size-[450px] rounded-full bg-[#09747e]/15 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -bottom-32 -right-32 size-[450px] rounded-full bg-[#ffaa07]/10 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-25 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
-        }}
-        aria-hidden="true"
-      />
+      {/* Decorative ambient background glows clipped to viewport */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -left-32 -top-32 size-[450px] rounded-full bg-[#09747e]/15 blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 size-[450px] rounded-full bg-[#ffaa07]/10 blur-3xl" />
+        <div
+          className="absolute inset-0 opacity-25 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)",
+            backgroundSize: "32px 32px",
+          }}
+        />
+      </div>
 
       {/* Main Login Card */}
       <div className="relative z-10 grid w-full max-w-4xl overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl ring-1 ring-foreground/5 lg:grid-cols-12">
         {/* Left Brand Showcase Hero (visible on large screens) */}
-        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#064e55] via-[#09747e] to-[#043438] p-8 text-white lg:col-span-5 lg:flex xl:p-10">
+        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#064e55] via-[#09747e] to-[#043438] p-6 text-white lg:col-span-5 lg:flex xl:p-8">
           {/* Subtle ambient light orb */}
           <div
             className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#ffaa07]/20 blur-2xl"
             aria-hidden="true"
           />
 
-          {/* Top Status Badge */}
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-white/90 backdrop-blur-md shadow-sm">
-              <span className="size-2 animate-pulse rounded-full bg-emerald-400" />
-              <span className="font-mono">{appName.toUpperCase()} CORE</span>
-            </span>
-          </div>
-
           {/* Center Logo & Identity */}
-          <div className="my-auto py-6">
-            <div className="relative mb-6 inline-block">
+          <div className="my-auto py-2">
+            <div className="relative mb-4 inline-block">
               <div className="absolute -inset-2 rounded-3xl bg-gradient-to-r from-[#ffaa07] to-[#00d2d3] opacity-40 blur-lg transition duration-500" />
               <img
                 src={omnigentLogo}
                 alt={appName}
-                className="relative size-20 rounded-2xl border border-white/25 bg-[#09747e] object-contain shadow-2xl"
+                className="relative size-16 rounded-2xl border border-white/25 bg-[#09747e] object-contain shadow-2xl"
               />
             </div>
-            <h2 className="mb-2 text-2xl font-bold tracking-tight text-white">
+            <h2 className="mb-2 text-xl font-bold tracking-tight text-white">
               Intelligent Multi-Agent Platform
             </h2>
-            <p className="mb-6 text-sm leading-relaxed text-white/80">
+            <p className="mb-4 text-xs leading-relaxed text-white/80 sm:text-sm">
               Orchestrate autonomous agent swarms, isolated runner workspaces, and persistent coding
               environments seamlessly.
             </p>
 
-            <div className="space-y-3 pt-2">
+            <div className="space-y-2.5 pt-1">
               <div className="flex items-center gap-2.5 text-xs text-white/90">
                 <div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-white/15">
                   <Cpu className="size-3 text-[#ffaa07]" />
@@ -239,35 +226,35 @@ export function LoginPage() {
           </div>
 
           {/* Bottom attribution */}
-          <div className="flex items-center justify-between border-t border-white/15 pt-5 text-xs text-white/70">
+          <div className="flex items-center justify-between border-t border-white/15 pt-3.5 text-xs text-white/70">
             <span>Powered by IP Labs</span>
             <span className="font-mono">v0.21.0</span>
           </div>
         </div>
 
         {/* Right Sign-in Form Panel */}
-        <div className="flex flex-col justify-center bg-card p-6 text-card-foreground sm:p-10 lg:col-span-7">
+        <div className="flex flex-col justify-center bg-card p-6 text-card-foreground sm:p-8 lg:col-span-7">
           {/* Mobile / Tablet Header with Logo */}
-          <div className="mb-6 flex items-center gap-3 lg:hidden">
+          <div className="mb-5 flex items-center gap-3 lg:hidden">
             <img
               src={omnigentLogo}
               alt={appName}
-              className="size-12 rounded-xl border border-border/60 bg-[#09747e] object-contain shadow-md"
+              className="size-11 rounded-xl border border-border/60 bg-[#09747e] object-contain shadow-md"
             />
             <div>
-              <h2 className="text-lg font-bold leading-tight text-foreground">{appName}</h2>
+              <h2 className="text-base font-bold leading-tight text-foreground">{appName}</h2>
               <p className="text-xs text-muted-foreground">Autonomous Agent Platform</p>
             </div>
           </div>
 
-          <div className="mb-6 space-y-1.5 text-left">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Sign in</h1>
-            <p className="text-sm text-muted-foreground">
+          <div className="mb-5 space-y-1 text-left">
+            <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Sign in</h1>
+            <p className="text-xs text-muted-foreground sm:text-sm">
               Welcome to {appName}. Enter your account credentials to continue.
             </p>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-3.5">
             {/* Username Input */}
             <div className="space-y-1.5">
               <label
@@ -362,7 +349,7 @@ export function LoginPage() {
           </form>
 
           {/* First-time Install & Admin Credentials Help Accordion */}
-          <div className="mt-6 border-t border-border/60 pt-4">
+          <div className="mt-4 border-t border-border/60 pt-3">
             <button
               type="button"
               onClick={() => setShowHelp(!showHelp)}
@@ -376,7 +363,7 @@ export function LoginPage() {
             </button>
 
             {showHelp && (
-              <div className="mt-2.5 space-y-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground animate-in fade-in-50 duration-200">
+              <div className="mt-2 space-y-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground animate-in fade-in-50 duration-200">
                 <p>
                   On a fresh install your username is your machine login (the output of{" "}
                   <code className="rounded border border-border/50 bg-background px-1 py-0.5 font-mono text-[11px] text-foreground">
@@ -398,7 +385,7 @@ export function LoginPage() {
           </div>
 
           {/* Footer Security Badge */}
-          <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+          <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="size-3.5 text-muted-foreground/70" />
             <span>End-to-end authenticated session & CSRF protection</span>
           </div>

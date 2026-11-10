@@ -1315,7 +1315,9 @@ html[data-electron-mac] .breadcrumb-folder {
    * overlay with it. Scoped via :has so login/register/setup pages (outside
    * the shell) keep default document scrolling. */
   html:has(.app-shell),
-  body:has(.app-shell) {
+  body:has(.app-shell),
+  html:has(.auth-page),
+  body:has(.auth-page) {
     overflow: hidden;
   }
   html {
