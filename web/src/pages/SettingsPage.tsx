@@ -76,7 +76,6 @@ import {
   TerminalIcon,
   Trash2Icon,
   UploadIcon,
-  UserCogIcon,
   UserIcon,
   XIcon,
   ClockIcon,

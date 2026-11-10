@@ -16,8 +16,6 @@ import {
   RefreshCwIcon,
   ShieldCheckIcon,
   UserCheckIcon,
-  CpuIcon,
-  CheckIcon,
   XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -34,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useIsAdmin, useIsSupervisor } from "@/hooks/useIsAdmin";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { listUsers, type AccountListEntry } from "@/lib/accountsApi";
 import {
   type OrganizationItem,
@@ -56,7 +54,6 @@ import {
 
 export function DivisionsPage() {
   const isAdmin = useIsAdmin();
-  const isSupervisor = useIsSupervisor();
 
   const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
   const [hosts, setHosts] = useState<HostItem[]>([]);
@@ -335,7 +332,6 @@ export function DivisionsPage() {
         <div className="space-y-4">
           {organizations.map((org) => {
             const assignedHostIds = org.assigned_hosts || [];
-            const assignedHostItems = hosts.filter((h) => assignedHostIds.includes(h.host_id));
             const supervisors = org.supervisors || [];
 
             return (

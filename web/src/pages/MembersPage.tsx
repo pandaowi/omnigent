@@ -4,7 +4,7 @@
  * Matched strictly to the clean design where Runtime = [Harness] · [Machine] and Model = [Model Selection].
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CopyIcon,
   KeyRoundIcon,
@@ -88,7 +88,7 @@ export function MembersPage() {
   const [modelFilter, setModelFilter] = useState<Record<string, string>>({});
 
   // Allowed hosts for supervisor (scoped to their division(s))
-  const displayHosts = useMemo(() => {
+  const displayHosts = useMemo<HostItem[]>(() => {
     if (isAdmin) return hosts;
     const allowed = new Set<string>();
     for (const org of organizations) {
@@ -100,7 +100,7 @@ export function MembersPage() {
   }, [isAdmin, hosts, organizations]);
 
   // Allowed models for supervisor on selected host (scoped to what Admin assigned to the division)
-  const allowedModelsForSelectedHost = useMemo(() => {
+  const allowedModelsForSelectedHost = useMemo<Set<string> | null>(() => {
     if (isAdmin || !selectedHostId) return null;
     for (const org of organizations) {
       const found = org.assigned_host_details?.find((d) => d.host_id === selectedHostId);
