@@ -273,9 +273,21 @@
   --radius-otto-md: 12px;
   --ease-otto: cubic-bezier(0.34, 1.4, 0.64, 1);
   --duration-otto-fast: 180ms;
+
+  /* Theme-aware scrollbars for all overflow containers */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 65%, var(--foreground) 30%);
+  --scrollbar-thumb-active: var(--primary);
+  --scrollbar-corner: transparent;
 }
 
 .dark {
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(255, 170, 7, 0.22);
+  --scrollbar-thumb-hover: rgba(255, 170, 7, 0.55);
+  --scrollbar-thumb-active: #ffaa07;
+  --scrollbar-corner: transparent;
   --app-shell-bg: var(--background);
   --session-composer-mask-bg: var(--app-shell-bg);
   --foreground-tertiary: rgb(245 245 244 / 24%);
@@ -1442,13 +1454,58 @@ html[data-electron-mac] .breadcrumb-folder {
   );
 }
 
-/* The transcript draws its own constant-height scrollbar (TranscriptScrollbar);
- * hide the native one so both don't show. */
-.transcript-hide-native-scrollbar {
-  scrollbar-width: none;
+/* ---- Theme-aware Custom Scrollbars for All Overflow Containers ---- */
+*,
+*::before,
+*::after {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
-.transcript-hide-native-scrollbar::-webkit-scrollbar {
-  display: none;
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  border: 1.5px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.15s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--scrollbar-corner);
+}
+
+/* The transcript draws its own constant-height scrollbar (TranscriptScrollbar);
+ * hide the native one so both don't show. Also preserve explicitly hidden scrollbars. */
+.transcript-hide-native-scrollbar,
+[class*="[scrollbar-width:none]"],
+[scrollbar-width="none"],
+.scrollbar-none {
+  scrollbar-width: none !important;
+}
+.transcript-hide-native-scrollbar::-webkit-scrollbar,
+[class*="[scrollbar-width:none]"]::-webkit-scrollbar,
+[scrollbar-width="none"]::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* The virtualized transcript holds its own read position across history

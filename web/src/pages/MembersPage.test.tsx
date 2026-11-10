@@ -33,6 +33,7 @@ vi.mock("@/lib/CapabilitiesContext", () => ({
 vi.mock("@/lib/identity", () => ({
   resolveIdentity: vi.fn(),
   getCurrentIsAdmin: vi.fn(),
+  getCurrentIsSupervisor: vi.fn().mockReturnValue(false),
 }));
 vi.mock("@/lib/accountsApi", () => ({
   listUsers: vi.fn(),

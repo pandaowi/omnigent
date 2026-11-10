@@ -2677,9 +2677,16 @@ function AccountSection() {
           ? null
           : {
               id: userId,
-              is_admin: getCurrentIsAdmin(),
-              is_supervisor: getCurrentIsSupervisor(),
-              primary_division: getCurrentPrimaryDivision(),
+              is_admin:
+                typeof getCurrentIsAdmin === "function" ? getCurrentIsAdmin() : false,
+              is_supervisor:
+                typeof getCurrentIsSupervisor === "function"
+                  ? getCurrentIsSupervisor()
+                  : false,
+              primary_division:
+                typeof getCurrentPrimaryDivision === "function"
+                  ? getCurrentPrimaryDivision()
+                  : null,
             },
       );
     })();
