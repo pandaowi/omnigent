@@ -689,7 +689,7 @@ describe("ApprovalCard — Antigravity permission prompt details", () => {
       name: "Always allow commands starting with pwd",
     });
     expect(alwaysAllow.getAttribute("title")).toBe(
-      "Ask Antigravity to save a rule allowing commands starting with “pwd” for this Omnigent session",
+      "Ask Antigravity to save a rule allowing commands starting with “pwd” for this IPLabs Agent Platform session",
     );
     fireEvent.click(alwaysAllow);
     expect(submitSpy).toHaveBeenCalledWith("elic_agy_perm", "accept", undefined, {

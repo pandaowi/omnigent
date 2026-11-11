@@ -2353,7 +2353,7 @@ async function loadServerUrl(
         if (current()) setWindowServerManifest(win, nextManifest);
       });
     }
-    if (!reconnectOverlay.isShown(win)) connectionLoading.show(win, attempt, "Opening Omnigent…");
+    if (!reconnectOverlay.isShown(win)) connectionLoading.show(win, attempt, "Opening IPLabs Agent Platform…");
     await win.loadURL(target);
     assertCurrent();
     diagnostics.record("connection_result", { origin: originOf(serverUrl), outcome: "loaded" });

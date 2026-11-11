@@ -53,7 +53,7 @@ export function LandingFooter() {
         •
       </span>
       <span className="whitespace-nowrap px-2 text-base text-muted-foreground">
-        Maintained by Databricks and the Omnigent community
+        Maintained by IPLabs and the open-source community
       </span>
     </div>
   );

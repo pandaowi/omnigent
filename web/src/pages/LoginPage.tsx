@@ -348,7 +348,7 @@ export function LoginPage() {
             </Button>
           </form>
 
-          {/* First-time Install & Admin Credentials Help Accordion */}
+          {/* About IPLabs Agent Platform Info Accordion */}
           <div className="mt-4 border-t border-border/60 pt-3">
             <button
               type="button"
@@ -356,8 +356,8 @@ export function LoginPage() {
               className="group flex w-full cursor-pointer items-center justify-between py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               <span className="flex items-center gap-1.5">
-                <Terminal className="size-3.5 text-[#09747e]" />
-                First time logging in or need install help?
+                <Sparkles className="size-3.5 text-[#09747e]" />
+                About IPLabs Agent Platform & Access
               </span>
               {showHelp ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
             </button>
@@ -365,20 +365,10 @@ export function LoginPage() {
             {showHelp && (
               <div className="mt-2 space-y-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground animate-in fade-in-50 duration-200">
                 <p>
-                  On a fresh install your username is your machine login (the output of{" "}
-                  <code className="rounded border border-border/50 bg-background px-1 py-0.5 font-mono text-[11px] text-foreground">
-                    whoami
-                  </code>
-                  ), unless an admin set a different one.
+                  <strong className="text-foreground">IPLabs Agent Platform</strong> is an enterprise AI orchestration environment powering autonomous coding agents, secure execution sandboxes, and multi-runner workspaces.
                 </p>
                 <p>
-                  On a fresh install you set the first admin's password yourself — no credential is
-                  auto-generated. A brand-new instance shows a Create-admin form instead of this
-                  one; the password can also be pre-seeded with{" "}
-                  <code className="rounded border border-border/50 bg-background px-1 py-0.5 font-mono text-[11px] text-foreground">
-                    OMNIGENT_ACCOUNTS_INIT_ADMIN_PASSWORD
-                  </code>
-                  .
+                  Access to this platform is restricted to authorized organization members. If you need an account, role elevation, or assistance signing in, please contact your workspace administrator or the <span className="font-medium text-foreground">IPLabs team</span>.
                 </p>
               </div>
             )}

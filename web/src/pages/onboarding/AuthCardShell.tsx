@@ -31,7 +31,7 @@ export function AuthCardShell({
         <div className="flex w-full max-w-sm flex-1 flex-col justify-center gap-6">
           <img
             src={omnigentLogo}
-            alt="Omnigent"
+            alt="IPLabs Agent Platform"
             className="mx-auto size-14 object-contain"
             aria-hidden="true"
           />

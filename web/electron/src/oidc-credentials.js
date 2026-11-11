@@ -116,15 +116,15 @@ async function signInWithBrowser(serverUrl, { signal, openExternal } = {}) {
       pages: {
         received: [
           "Sign-in received",
-          "Return to Omnigent to finish connecting, then close this tab.",
+          "Return to IPLabs Agent Platform to finish connecting, then close this tab.",
         ],
         failed: [
           "Sign-in was not completed",
-          "Close this tab and try connecting again in Omnigent.",
+          "Close this tab and try connecting again in IPLabs Agent Platform.",
         ],
         incomplete: [
           "Sign-in could not be completed",
-          "Close this tab and try connecting again in Omnigent.",
+          "Close this tab and try connecting again in IPLabs Agent Platform.",
         ],
       },
       signal,

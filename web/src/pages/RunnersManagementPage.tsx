@@ -163,7 +163,7 @@ export function RunnersManagementPage() {
                 Connected Host Runners ({hosts.length})
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Physical nodes running the Omnigent agent host daemon.
+                Physical nodes running the IPLabs Agent Platform host daemon.
               </p>
             </div>
           </div>

@@ -669,7 +669,7 @@ function QrCodeDialog({
               // mode; the padding also serves as the QR quiet zone.
               bgColor="#ffffff"
               fgColor="#000000"
-              aria-label="QR code to open this session in the Omnigent app"
+              aria-label="QR code to open this session in the IPLabs Agent Platform app"
             />
           </div>
         </div>

@@ -528,7 +528,7 @@ export function SettingsCustomAgentsSection() {
 function UnsupportedServer() {
   return (
     <p role="alert" className="text-ui text-muted-foreground">
-      This Omnigent server does not support custom agents.
+      This IPLabs Agent Platform server does not support custom agents.
     </p>
   );
 }
