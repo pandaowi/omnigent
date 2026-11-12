@@ -36,4 +36,11 @@ describe("toolViewFor", () => {
     }
     expect(toolViewFor("manage_todo_list")).toBeUndefined();
   });
+
+  it("registers a screenshot view for browser screenshot tools", () => {
+    const screenshotView = toolViewFor("browser_screenshot");
+    expect(screenshotView?.bodyLabel).toBe("Screenshot");
+    expect(screenshotView?.Body).toBeDefined();
+    expect(toolViewFor("mcp__omnigent__browser_screenshot")).toBe(screenshotView);
+  });
 });

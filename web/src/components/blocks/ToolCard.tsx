@@ -43,6 +43,8 @@ import {
   toolErrorMessage,
 } from "@/lib/toolValue";
 import { resolveChatFilePath } from "@/hooks/useWorkspaceChangedFiles";
+import { ZoomableImage } from "@/components/ImageLightbox";
+import { extractToolImage } from "@/lib/toolImage";
 import { useFileViewer, useWorkspacePaths } from "@/shell/FileViewerContext";
 import {
   CodePanel,
@@ -144,8 +146,8 @@ export function ToolCard({
     if (lineCounts) return lineCounts;
     if (!output || typeof output !== "string") return null;
     const match =
-      output.match(/(?:\+|\+\s*)(\d+)\s*(?:additions?|added|insertions?\(\+\))?[,\s]+(?:-|\-\s*)(\d+)\s*(?:deletions?|deleted|deletions?\(\-\))?/i) ||
-      output.match(/(\d+)\s*insertions?\(\+\)[,\s]+(\d+)\s*deletions?\(\-\)/i);
+      output.match(/(?:\+|\+\s*)(\d+)\s*(?:additions?|added|insertions?\(\+\))?[,\s]+(?:-|-\s*)(\d+)\s*(?:deletions?|deleted|deletions?\(-?\))?/i) ||
+      output.match(/(\d+)\s*insertions?\(\+\)[,\s]+(\d+)\s*deletions?\(-?\)/i);
     if (match && match[1] && match[2]) {
       const additions = parseInt(match[1], 10);
       const removals = parseInt(match[2], 10);
@@ -301,6 +303,7 @@ function ToolSectionLabel({ children, className }: { children: ReactNode; classN
 type ResultPresentation =
   | { kind: "error"; message: string; fields: Record<string, unknown> | null }
   | { kind: "fields"; value: unknown }
+  | { kind: "image"; src: string; mimeType?: string }
   | { kind: "inline"; text: string }
   | { kind: "panel"; text: string; language: CodeLanguage };
 
@@ -313,6 +316,8 @@ function presentToolResult(output: string): ResultPresentation {
   const parsed = parseToolOutput(output);
   const error = toolErrorMessage(parsed);
   if (error !== null) return { kind: "error", message: error, fields: errorContext(parsed, error) };
+  const image = extractToolImage(output);
+  if (image !== null) return { kind: "image", src: image.src, mimeType: image.mimeType };
   if (parsed.kind === "json") {
     const pretty = prettyJson(parsed.value);
     if (pretty === null) return { kind: "panel", text: parsed.text, language: "text" };
@@ -387,6 +392,16 @@ function ToolResultView({
       );
     case "fields":
       return <ToolValueView value={presentation.value} subgrid={subgrid} />;
+    case "image":
+      return spanned(
+        <div className="flex max-w-full items-center justify-center overflow-hidden rounded-md border border-border bg-muted/10 p-2">
+          <ZoomableImage
+            src={presentation.src}
+            alt="Tool result image"
+            className="max-h-[30rem] w-auto max-w-full rounded border border-border/50 object-contain shadow-sm"
+          />
+        </div>,
+      );
     case "inline":
       return spanned(
         presentation.text.length === 0 ? (

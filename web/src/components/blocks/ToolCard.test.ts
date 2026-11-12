@@ -32,7 +32,7 @@ async function registerRealView(name: string) {
 }
 
 // Radix tabs switch on mouse down (or focus), not on a synthetic click.
-function showView(name: "Fields" | "Diff" | "Raw") {
+function showView(name: "Fields" | "Diff" | "Raw" | "Screenshot") {
   fireEvent.mouseDown(screen.getByRole("tab", { name }));
 }
 
@@ -479,6 +479,50 @@ describe("ToolCard registered views", () => {
     // The raw payload stays one switch away from a view's body.
     showView("Raw");
     expect(screen.getByText("Input")).toBeInTheDocument();
+  });
+
+  it("shows browser screenshot behind a Screenshot | Raw switch", async () => {
+    await registerRealView("browser_screenshot");
+    const dataUrl =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const { container } = renderCard({
+      name: "browser_screenshot",
+      arguments: {},
+      output: dataUrl,
+      state: "output-available",
+    });
+
+    const trigger = container.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]')!;
+    fireEvent.click(trigger);
+
+    expect(screen.getByRole("tab", { name: "Screenshot" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const img = screen.getByRole("img", { name: "Browser screenshot" });
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute("src", dataUrl);
+
+    showView("Raw");
+    expect(screen.getByText("Result")).toBeInTheDocument();
+  });
+
+  it("renders a generic tool's image result inline", () => {
+    const dataUrl =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const { container } = renderCard({
+      name: "custom_camera_capture",
+      arguments: {},
+      output: dataUrl,
+      state: "output-available",
+    });
+
+    const trigger = container.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]')!;
+    fireEvent.click(trigger);
+
+    const img = screen.getByRole("img", { name: "Tool result image" });
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute("src", dataUrl);
   });
 
   it("shows an edit's line counts after its title and its diff behind a Diff | Raw switch", async () => {
