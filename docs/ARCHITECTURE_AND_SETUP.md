@@ -436,9 +436,12 @@ docker exec -i omnigent-labs-postgres-1 psql -U omnigent -d omnigent -c "SELECT 
 
 ---
 
-## 11. Detail Penambahan & Modifikasi Fitur dari Source Asli (Upstream Omnigent v0.21.0)
+## 11. Detail Penambahan & Modifikasi Fitur dari Source Asli (Upstream Omnigent v0.21.0 & v0.22.0)
 
-Fork ini dibangun di atas rilis resmi upstream **Omnigent v0.21.0**, dengan penambahan sebanyak **152 file termodifikasi (+11.053 baris kode, -1.770 baris)** yang terbagi ke dalam 5 pilar inovasi:
+> 📘 **Dokumentasi Lengkap Perubahan Versi (Changelog):**  
+> Untuk perbandingan rinci antara upstream origin `v0.21.0 ➔ v0.22.0` (Major, Minor, Bug Fixes) dan seluruh layer kustom platform IPLabs, baca: [VERSION_CHANGELOG.md](file:///Users/tantowi/Development/omnigent/VERSION_CHANGELOG.md).
+
+Platform ini dibangun di atas rilis resmi upstream Omnigent dan telah di-upgrade ke basis **v0.22.0** (`v0.22.0-iplabs.1` pada branch `upgrade/v0.22.0-with-custom-features`), dengan tetap mempertahankan 5 pilar inovasi kustom kita:
 
 ### 1. Multica-Style Custom Agents & Live Runner Probing
 * **Runtime / Runner Host Selector**:
