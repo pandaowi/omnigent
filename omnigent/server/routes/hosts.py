@@ -882,20 +882,28 @@ async def _resolve_and_enforce_user_workspace(
 
     norm_path = os.path.normpath(resolved_path)
 
-    # All division members (supervisors and staff) are permitted within their division workspace(s)
+    is_supervisor = org_store.is_user_supervisor(user_id)
+
+    # Supervisors can access anywhere in their division workspace(s).
+    # Regular members are strictly jailed to their user workspace.
     allowed = False
     for div_root in division_roots:
         b_div = div_root if div_root.endswith("/") else div_root + "/"
         b_user = os.path.normpath(f"{div_root}/{user_slug}")
         b_user_prefix = b_user if b_user.endswith("/") else b_user + "/"
-        if (
-            norm_path == div_root
-            or norm_path.startswith(b_div)
-            or norm_path == b_user
-            or norm_path.startswith(b_user_prefix)
-        ):
-            allowed = True
-            break
+        if is_supervisor:
+            if (
+                norm_path == div_root
+                or norm_path.startswith(b_div)
+                or norm_path == b_user
+                or norm_path.startswith(b_user_prefix)
+            ):
+                allowed = True
+                break
+        else:
+            if norm_path == b_user or norm_path.startswith(b_user_prefix):
+                allowed = True
+                break
 
     if not allowed:
         action = "create directory" if is_create else "access folder"
