@@ -341,7 +341,6 @@ const RunnersManagementPage = lazy(() =>
 const AdminGeneralPage = lazy(() =>
   import("@/pages/AdminGeneralPage").then((m) => ({ default: m.AdminGeneralPage })),
 );
-);
 
 /**
  * Settings content panel. The section nav lives in the sidebar card
