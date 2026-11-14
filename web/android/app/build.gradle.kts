@@ -36,8 +36,8 @@ val storeFilePath = signingValue("storeFile", "OMNIGENT_KEYSTORE_FILE")
 fun buildProperty(key: String): String? =
     (project.findProperty(key) as? String)?.takeIf { it.isNotBlank() }
 
-val appVersionCode = buildProperty("versionCode")?.toIntOrNull() ?: 9
-val appVersionName = buildProperty("versionName") ?: "0.1.3"
+val appVersionCode = buildProperty("versionCode")?.toIntOrNull() ?: 22
+val appVersionName = buildProperty("versionName") ?: "0.2.2"
 // The public first-party Databricks client the desktop and iOS apps use too.
 val databricksOAuthClientId = buildProperty("databricksOAuthClientId") ?: "omnigent"
 val databricksOAuthRedirectUrl =

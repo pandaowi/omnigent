@@ -1328,10 +1328,6 @@ function registerSessionExpiryAccess() {
  */
 function applyDockIcon() {
   if (process.platform !== "darwin" || !app.dock) return;
-  // Packaged builds get the bundle icon (Assets.car / icon.icns), which has
-  // the standard margins and dynamic-icon support; overriding it with the
-  // full-bleed PNG would render oversized in the Dock.
-  if (app.isPackaged) return;
   const img = nativeImage.createFromPath(ICON_PNG);
   if (!img.isEmpty()) app.dock.setIcon(img);
 }
@@ -1658,7 +1654,8 @@ const updater = createDesktopUpdater({
   // this to !app.isPackaged — not an env var — ensures a packaged app can
   // never be redirected to a repository-local update configuration.
   forceDevUpdateConfig: !app.isPackaged,
-  updatesEnabled: !app.isPackaged || !isDevBuild,
+  // Disabled in custom IPLabs build to prevent upstream Omnigent binaries from overwriting branded app
+  updatesEnabled: false,
 });
 
 // Shell-owned About window: available from the native application menu even
@@ -5543,7 +5540,7 @@ async function handleDeepLink(raw) {
 // ---------------------------------------------------------------------------
 
 // Name drives the macOS app menu title and the notification source name.
-app.setName(isDevBuild ? "Omnigent Dev" : "Omnigent");
+app.setName(isDevBuild ? "IPLabs Dev" : "IPLabs");
 if (isDevBuild) {
   const devData = path.join(app.getPath("appData"), "Omnigent Dev");
   fs.mkdirSync(devData, { recursive: true });
@@ -5604,7 +5601,7 @@ if (!gotLock) {
     diagnostics.initialize(app);
     // App User Model ID so Windows attributes notifications/taskbar correctly.
     if (process.platform === "win32")
-      app.setAppUserModelId(isDevBuild ? DEV_DOMAIN : "ai.omnigent.desktop");
+      app.setAppUserModelId(isDevBuild ? DEV_DOMAIN : "ai.iplabs.desktop");
     applyDockIcon();
     registerPermissions();
     registerLocalhostAccess();

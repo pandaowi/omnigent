@@ -357,12 +357,154 @@ Agar project otomasi dan coding tidak bertumpuk di `/home/coder`:
 
 ---
 
-## 10. Ringkasan Perintah Penting
+## 10. Panduan Deployment Server Development & Production (Server Deployment Playbook)
 
-| Tindakan | Perintah |
-|---|---|
-| **Cek status runner aktif** | `docker exec coder-tantowijauhari-frappe-dev tmux ls` |
-| **Lihat log runner realtime** | `docker exec coder-tantowijauhari-frappe-dev tail -f /home/coder/.omnigent/logs/runner-service.log` |
-| **Cek status runner di database** | `SELECT encode(host_id, 'hex'), name, status FROM hosts;` |
-| **Port Forwarding via Coder CLI** | `coder ssh <workspace-name> -- -L 3000:localhost:3000` |
-| **Masuk ke session tmux runner** | `tmux attach -t omni-runner` |
+Bagian ini adalah panduan standar bagi engineer maupun AI Agent untuk mengeksekusi deployment ke server Development dan Production.
+
+### A. Matriks Lingkungan Server
+
+| Parameter | Server Development | Server Production |
+|---|---|---|
+| **Host IP** | `192.168.7.70` | `192.168.7.101` |
+| **SSH User** | `owi` (`owi@192.168.7.70`) | `imani` (`imani@192.168.7.101`) |
+| **Akses Web UI** | `http://192.168.7.70:8090` | `http://192.168.7.101:8090` |
+| **Target Branch** | `feat/multica-style-agents` atau `main` | `feat/multica-style-agents` atau `main` |
+| **Project Compose** | `omnigent-labs` | `omnigent-labs` |
+| **Container Backend** | `omnigent-labs-omnigent-1` (Port 8000 -> 8090) | `omnigent-labs-omnigent-1` (Port 8000 -> 8090) |
+| **Container Database** | `omnigent-labs-db` / `omnigent-labs-postgres-1` | `omnigent-labs-db` / `omnigent-labs-postgres-1` |
+| **Direktori Standar** | `~/omnigent` atau `~/omnigent-repo/deploy/docker` | `~/omnigent` atau `~/omnigent-repo/deploy/docker` |
+
+---
+
+### B. Prosedur Deployment Standar (Step-by-Step)
+
+Ketika diperintahkan untuk melakukan deploy ke salah satu server, ikuti langkah-langkah berikut:
+
+#### 1. Masuk Melalui SSH
+```bash
+# Untuk Server Development:
+ssh owi@192.168.7.70
+
+# Untuk Server Production:
+ssh imani@192.168.7.101
+```
+
+#### 2. Navigasi ke Direktori Project & Tarik Kode Terbaru
+```bash
+# Masuk ke direktori repository
+cd ~/omnigent || cd ~/omnigent-repo
+
+# Pastikan working tree bersih dan fetch branch kustom
+git fetch origin
+git checkout feat/multica-style-agents
+git pull origin feat/multica-style-agents
+```
+
+#### 3. Build & Restart Service Melalui Docker Compose
+Masuk ke direktori deployment docker dan jalankan rebuild:
+```bash
+cd deploy/docker
+
+# Rebuild image container dan jalankan di background (-p omnigent-labs menjaga nama container konsisten)
+docker compose -p omnigent-labs up -d --build
+```
+> *Catatan: Proses build mencakup kompilasi Vite React SPA frontend dan FastAPI Python backend di dalam multi-stage Dockerfile.*
+
+#### 4. Verifikasi Status dan Log Container
+```bash
+# Cek apakah kedua container berjalan normal (STATUS: Up / healthy)
+docker compose -p omnigent-labs ps
+
+# Periksa log startup backend
+docker compose -p omnigent-labs logs -f --tail=100 omnigent
+
+# Pastikan endpoint HTTP merespons dengan kode 200/307
+curl -I http://localhost:8090/
+```
+
+#### 5. Verifikasi Koneksi Runner WebSocket Tunnel
+Setelah container backend server restart, pastikan runner di container Coder otomatis terhubung kembali:
+```bash
+# Cek status runner aktif di database
+docker exec -i omnigent-labs-omnigent-1 python3 -c "
+from omnigent.server.app import make_app
+print('Checking hosts...')
+"
+# Atau cek langsung di tabel hosts database PostgreSQL:
+docker exec -i omnigent-labs-postgres-1 psql -U omnigent -d omnigent -c "SELECT encode(host_id, 'hex') AS host_id, name, status, last_seen_at FROM hosts;"
+```
+
+---
+
+## 11. Detail Penambahan & Modifikasi Fitur dari Source Asli (Upstream Omnigent v0.21.0)
+
+Fork ini dibangun di atas rilis resmi upstream **Omnigent v0.21.0**, dengan penambahan sebanyak **152 file termodifikasi (+11.053 baris kode, -1.770 baris)** yang terbagi ke dalam 5 pilar inovasi:
+
+### 1. Multica-Style Custom Agents & Live Runner Probing
+* **Runtime / Runner Host Selector**:
+  - Pada dialog pembuatan agent (`CreateAgentDialog` & `CreateAgentTeamDialog`), ditambahkan selector dropdown *Runtime / Runner Host* (contoh: `omnigent-runner-dev ● Online`).
+  - Pemilihan ini secara otomatis me-route turn eksekusi chat ke runner host yang bersangkutan melalui WebSocket tunnel.
+* **Integrasi Runner Native Harness**:
+  - **Codex Native CLI**: Eksekusi coding harness langsung dari environment runner tanpa dependensi cloud API.
+  - **OpenCode Native CLI**: Dukungan penuh harness OpenCode (versi `>=1.18.0,<2.0.0`) dengan probe opsi model live dari runner CLI.
+  - **Antigravity CLI (AGY)**: Integrasi probe model dinamis dari AGY runner, termasuk katalog model terbaru seperti Gemini 4 Argon.
+* **Live Dynamic Model Probing**:
+  - Opsi model tidak di-hardcode di UI, melainkan di-probe secara real-time dari host runner yang dipilih via route `_session_harness_readiness.py` dan `model_option_routes.py`.
+
+### 2. Multi-Divisi & 3-Tier Enterprise RBAC
+* **Hierarki Role 3 Tingkat**:
+  - **Global Admin**: Super Administrator dengan visibilitas penuh, pengelola master data organisasi/divisi, dan bypass isolasi direktori.
+  - **Supervisor**: Kepala Divisi yang terisolasi ketat hanya pada divisinya sendiri. Dapat membuat/mengundang member (terkunci otomatis ke divisinya), mengatur runner dan whitelist model divisi, serta mereset password member.
+    - *Guardrail Keamanan*: Supervisor dicegah melihat atau memodifikasi akun Global Admin maupun mengakses divisi lain (`test_supervisor_rbac_and_workspace.py`).
+  - **Member**: Staff operasional yang hanya dapat menjalankan chat/task pada runner divisi dan terkunci pada workspace pribadinya.
+* **Path Jailing & Dynamic Workspace Routing**:
+  - Struktur isolasi folder: `/home/coder/workspaces/{divisi}/{username}/...`.
+  - Backend mengimplementasikan resolusi tilde (`~`) yang aman dan mencegah *directory traversal* keluar dari sandbox divisi pengguna.
+* **Redesign Members Page & Modals**:
+  - Tampilan tabel eksekutif dengan filter divisi, supervisor account badge, dropdown seleksi user, dan modal alokasi runner yang bersih.
+
+### 3. Agent Teams & Visual Task Board (Better-Paseo)
+* **Agent Teams Builder UI**:
+  - Tab visual `Agent Teams` di navigasi utama dengan komponen kartu komposisi tim (`TeamCompositionCard`).
+  - Dialog pembentukan tim kolaboratif multi-peran dengan preset bawaan (*Video Studio Remotion*, *Collaborative Bundle: Architect, Coder, Reviewer*).
+* **Better-Paseo Visual Tasks Board (Kanban)**:
+  - Halaman `/tasks` dengan visual Kanban board modern berbasis status run terakhir (`lastRunStatus`).
+  - Sidebar navigation link ke Tasks dengan icon `ListTodoIcon`.
+* **Compact Timeline & Collapsible Tool Pills**:
+  - Tampilan timeline interaksi chat yang ringkas, collapsible tool pills yang informatif, serta fitur **inline image preview & zoom** untuk hasil screenshot browser.
+
+### 4. Total Rebranding ke IPLabs (Imani Prima)
+* **Web UI Branding**:
+  - Mengubah seluruh string teks user-facing dari "Omnigent" menjadi **"IPLabs Agent Platform"**.
+  - Mengeliminasi flicker maskot starfish pada saat refresh halaman.
+  - Mengganti seluruh favicon dan branding header dengan logo resmi IPLabs / Imani Prima.
+  - Menyesuaikan tema warna (*IPLabs palette label*) dan universal theme-aware scrollbars yang dinamis mengikuti tint latar belakang.
+* **Desktop Shell (Electron)**:
+  - Penyesuaian metadata aplikasi menjadi `IPLabs` / `ai.iplabs.desktop` dengan email maintainer `IPLabs <support@iplabs.ai>`.
+  - Penggantian aset icon native macOS (`.icns`, background installer `.dmg`), Windows (`.ico`), dan Linux (`.svg`).
+  - **Penonaktifan Upstream Auto-Updater**: Mencegah binary rilis resmi upstream Omnigent menimpa branding aplikasi IPLabs.
+* **Android Shell**:
+  - Update version code (`versionCode: 22`, `versionName: 0.2.2`) dan asset icon Android.
+
+### 5. Tooling, Sandbox & Runner Infrastruktur
+* **Skrip Otomasi Setup Runner (`scripts/setup-coder-runner.sh`)**:
+  - Skrip bash satu baris untuk generate UUID Host ID stabil, pembuatan file konfigurasi `~/.omnigent/config.yaml`, dan inisialisasi loop auto-reconnect di tmux session.
+* **Sandbox Container Fallback**:
+  - Fallback otomatis ke unisolated `os_env` jika `bwrap` (bubblewrap) gagal berjalan di container tanpa nested virtualization privileges.
+* **Runner-Only Lightweight Packaging**:
+  - Dukungan flag `OMNIGENT_SKIP_WEB_UI=true` saat instalasi runner (`uv tool install`) sehingga container runner Coder tidak memerlukan Node.js >= 22.
+
+---
+
+## 12. Ringkasan Perintah Penting & Cheat Sheet
+
+| Kategori | Tindakan | Perintah |
+|---|---|---|
+| **Deploy** | **SSH ke Server Dev** | `ssh owi@192.168.7.70` |
+| **Deploy** | **SSH ke Server Prod** | `ssh imani@192.168.7.101` |
+| **Deploy** | **Update & Rebuild Server** | `git pull origin feat/multica-style-agents && cd deploy/docker && docker compose -p omnigent-labs up -d --build` |
+| **Runner** | **Cek status runner aktif** | `docker exec coder-tantowijauhari-frappe-dev tmux ls` |
+| **Runner** | **Lihat log runner realtime** | `docker exec coder-tantowijauhari-frappe-dev tail -f /home/coder/.omnigent/logs/runner-service.log` |
+| **Runner** | **Masuk ke session tmux runner** | `tmux attach -t omni-runner` |
+| **Database** | **Cek status runner di database** | `docker exec -i omnigent-labs-postgres-1 psql -U omnigent -d omnigent -c "SELECT encode(host_id, 'hex'), name, status FROM hosts;"` |
+| **Network** | **Port Forwarding via Coder CLI** | `coder ssh <workspace-name> -- -L 3000:localhost:3000` |

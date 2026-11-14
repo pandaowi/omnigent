@@ -1,7 +1,7 @@
 {
   "name": "omnigent-desktop-electron",
   "productName": "IPLabs",
-  "version": "0.18.1",
+  "version": "0.21.0",
   "description": "IPLabs desktop shell (Electron edition) — a thin native wrapper around the server-served web UI.",
   "private": true,
   "main": "src/main.js",
@@ -50,12 +50,6 @@
         "schemes": [
           "omnigent"
         ]
-      }
-    ],
-    "publish": [
-      {
-        "provider": "generic",
-        "url": "https://omnigent.ai/_desktop/updates/"
       }
     ],
     "afterPack": "build/afterPack.js",
@@ -118,12 +112,6 @@
             "arm64"
           ]
         }
-      ],
-      "publish": [
-        {
-          "provider": "generic",
-          "url": "https://omnigent.ai/_desktop/updates/"
-        }
       ]
     },
     "dmg": {
@@ -150,28 +138,16 @@
     "linux": {
       "icon": "icons/icon.svg",
       "category": "Development",
-      "maintainer": "Databricks, Inc. <support@omnigent.ai>",
+      "maintainer": "IPLabs <support@iplabs.ai>",
       "target": [
         "AppImage",
         "deb"
-      ],
-      "publish": [
-        {
-          "provider": "generic",
-          "url": "https://omnigent.ai/_desktop/updates/"
-        }
       ]
     },
     "win": {
       "icon": "icons/icon.ico",
       "target": [
         "nsis"
-      ],
-      "publish": [
-        {
-          "provider": "generic",
-          "url": "https://omnigent.ai/_desktop/updates/"
-        }
       ]
     }
   },
