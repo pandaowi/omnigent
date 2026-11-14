@@ -1,7 +1,49 @@
-# Agent guidance
+# Agent guidance: IPLabs Agent Platform
 
-Guidance for AI agents (Claude Code, Copilot, Cursor, etc.) working in this
-repository. See `CONTRIBUTING.md` for the full contributor workflow.
+Guidance for AI agents (Claude Code, Antigravity, Copilot, Cursor, etc.) working in this
+repository.
+
+---
+
+## 🎯 Important: IPLabs Agent Platform Context
+
+This repository is a customized fork of **Omnigent** for **PT Imani Prima (IPLabs)**.
+- **Current Version**: `v0.22.0-iplabs.1` (Upgraded from upstream `v0.21.0` to `v0.22.0`).
+- **Primary Branches**:
+  - `upgrade/v0.22.0-with-custom-features` (Latest integration on v0.22.0).
+  - `feat/multica-style-agents` / `main` (Custom feature development).
+- **Remotes**:
+  - `origin`: `https://github.com/pandaowi/omnigent.git` (Our fork).
+  - `upstream`: `https://github.com/omnigent-ai/omnigent.git` (Official base).
+
+### 🚀 Server Matrix & Deployment Playbook:
+When instructed to deploy to server Development or Production, use these exact parameters:
+- **Development Server**: `owi@192.168.7.70` (Port 8090, URL: `http://192.168.7.70:8090`)
+- **Production Server**: `imani@192.168.7.101` (Port 8090, URL: `http://192.168.7.101:8090`)
+- **Standard Deploy Command**:
+  ```bash
+  ssh <user>@<host_ip>
+  cd ~/omnigent || cd ~/omnigent-repo
+  git fetch origin && git checkout upgrade/v0.22.0-with-custom-features && git pull origin upgrade/v0.22.0-with-custom-features
+  cd deploy/docker
+  docker compose -p omnigent-labs up -d --build
+  ```
+
+### 🛡️ Critical Custom Layers (DO NOT BREAK / OVERWRITE):
+1. **Multica-Style Custom Agents**: Runtime host selector in `CreateAgentDialog`, live model option probing from runner CLI, and native harnesses (**Codex Native**, **OpenCode Native >=1.18.0,<2.0.0**, **Antigravity AGY / Gemini 4 Argon**).
+2. **Multi-Divisi & 3-Tier Enterprise RBAC**: Global Admin, Supervisor (isolated to own division), and Member (strictly jailed to `/home/coder/workspaces/{divisi}/{username}`).
+3. **Agent Teams & Tasks Kanban**: Visual team builder, Remotion presets, Kanban board at `/tasks`, and browser screenshot zoom preview.
+4. **IPLabs Rebranding**: Product name `IPLabs Agent Platform`, gold `#ffaa07` / dark `#061212` palette, Electron desktop without upstream auto-updater, and custom icons.
+5. **Coder Runner Tooling**: Non-root `coder` execution, `scripts/setup-coder-runner.sh`, tmux daemon loop with auto-reconnect, and bubblewrap (`bwrap`) fallback.
+
+### 🧪 Quality Assurance & Local Verification:
+- **Frontend Typecheck**: `cd web && pnpm tsc --noEmit` (Must be 0 errors).
+- **Frontend Build**: `cd web && pnpm build` (Must build in ~4-5s).
+- **Backend RBAC Tests**: `.venv/bin/pytest tests/server/test_supervisor_rbac_and_workspace.py` (Must pass 100%).
+
+For full architecture details and changelog, see `docs/ARCHITECTURE_AND_SETUP.md` and `docs/VERSION_CHANGELOG.md`.
+
+---
 
 ## Reuse and design
 
