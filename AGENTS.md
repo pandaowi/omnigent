@@ -41,6 +41,11 @@ When instructed to deploy to server Development or Production, use these exact p
 - **Frontend Build**: `cd web && pnpm build` (Must build in ~4-5s).
 - **Backend RBAC Tests**: `.venv/bin/pytest tests/server/test_supervisor_rbac_and_workspace.py` (Must pass 100%).
 
+### 📝 Mandatory Rule: Automatic VERSION_CHANGELOG.md Updates
+Whenever any agent performs an upstream version upgrade, branch rebase/merge, or significant platform enhancement:
+- The agent **MUST AUTOMATICALLY update `docs/VERSION_CHANGELOG.md`** (and `../VERSION_CHANGELOG.md`) without waiting for explicit user prompts.
+- Ensure the version comparison matrix, list of Major/Minor/Fix changes, and QA verification results are thoroughly recorded.
+
 For full architecture details and changelog, see `docs/ARCHITECTURE_AND_SETUP.md` and `docs/VERSION_CHANGELOG.md`.
 
 ---
