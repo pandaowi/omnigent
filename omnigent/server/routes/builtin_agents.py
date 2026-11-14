@@ -87,6 +87,7 @@ def _to_agent_object(agent: Agent, agent_cache: AgentCache) -> AgentObject:
     terminals: list[str] = []
     harness: str | None = None
     host_id: str | None = None
+    loads_user_settings = True
     # Prefer the stored entity's description; fall back to the spec's
     # top-level description when the stored value is unset (single-file
     # YAML agents don't persist it at registration today). Lets the
@@ -129,6 +130,7 @@ def _to_agent_object(agent: Agent, agent_cache: AgentCache) -> AgentObject:
         executor_cfg = getattr(loaded.spec.executor, "config", None)
         if isinstance(executor_cfg, dict):
             host_id = executor_cfg.get("host_id")
+        loads_user_settings = loaded.spec.loads_user_settings
     except Exception:  # spec load failure must not break the list
         _logger.debug(
             "Failed to load spec for agent %s; mcp_servers/skills will be empty",
@@ -147,6 +149,7 @@ def _to_agent_object(agent: Agent, agent_cache: AgentCache) -> AgentObject:
         host_id=host_id,
         mcp_servers=mcp_servers,
         mcp_servers_editable=False,
+        loads_user_settings=loads_user_settings,
         skills=skills,
         terminals=terminals,
         # Seeded built-ins use a deterministic, name-derived id; an

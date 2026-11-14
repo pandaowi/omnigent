@@ -47,6 +47,7 @@ export type SettingsSectionId =
   | "shortcuts"
   | "import"
   | "account"
+  | "admin"
   | "divisions"
   | "members"
   | "runners"
@@ -67,6 +68,7 @@ const SECTION_IDS: readonly SettingsSectionId[] = [
   "shortcuts",
   "import",
   "account",
+  "admin",
   "divisions",
   "members",
   "runners",
@@ -108,6 +110,7 @@ export function settingsNavGroups(
   customAgentsEnabled = false,
   mcpEnabled = false,
   isSupervisor = false,
+  nestedAgentsEnabled = false,
 ): SettingsNavGroup[] {
   const harnesses: SettingsNavItem = {
     id: "harnesses",
@@ -157,8 +160,11 @@ export function settingsNavGroups(
   }
   // Admin: server-wide management, admin-only.
   // Supervisor: division-scoped management (their division & members).
+  const adminItems: SettingsNavItem[] = [];
+  if ((isAdmin || isSingleUser) && nestedAgentsEnabled) {
+    adminItems.push({ id: "admin", label: "General", icon: SettingsIcon });
+  }
   if (isAdmin) {
-    const adminItems: SettingsNavItem[] = [];
     if (!isSingleUser) {
       adminItems.push({ id: "divisions", label: "Divisions", icon: Building2Icon });
       adminItems.push({ id: "members", label: "Members", icon: UsersIcon });
@@ -166,8 +172,10 @@ export function settingsNavGroups(
     }
     adminItems.push({ id: "policies", label: "Policies", icon: ShieldCheckIcon });
     if (!isSingleUser) adminItems.push({ id: "sharing", label: "Sharing", icon: Share2Icon });
-    groups.push({ title: "Administration", items: adminItems });
-  } else if (isSupervisor && !isSingleUser) {
+  }
+  if (adminItems.length > 0) groups.push({ title: "Administration", items: adminItems });
+
+  if (isSupervisor && !isSingleUser) {
     const spvItems: SettingsNavItem[] = [
       { id: "divisions", label: "My Division", icon: Building2Icon },
       { id: "members", label: "Members", icon: UsersIcon },
@@ -211,6 +219,7 @@ export function useSettingsRoute(): {
   const isValidSection =
     (SECTION_IDS as readonly string[]).includes(next) &&
     !(singleUser && (next === "members" || next === "sharing" || next === "divisions" || next === "runners")) &&
+    !(next === "admin" && (info === "loading" || info.sibling_sessions !== true)) &&
     !(next === "custom-agents" && !customAgentsSettingsEnabled(info));
   const section = isValidSection ? (next as SettingsSectionId) : defaultSection;
   const harness = section === "harnesses" ? segments[idx + 2] : undefined;
@@ -276,6 +285,7 @@ export function SettingsSidebarBody({
     customAgentsSettingsEnabled(info),
     mcpEnabled,
     isSupervisor,
+    info !== "loading" && info.sibling_sessions === true,
   );
 
   return (

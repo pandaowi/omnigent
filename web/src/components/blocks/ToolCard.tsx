@@ -443,12 +443,11 @@ export function ToolGroupSummary({ tools }: { tools: RenderItem[] }) {
   const count = tools.length;
   return (
     // Named `group/tool-summary` so this collapsible only rotates its
-    // OWN chevron.
     <Collapsible
       defaultOpen={false}
       className="group/tool-summary not-prose w-full my-1.5 rounded-lg border border-border/60 bg-muted/25 transition-all duration-150 hover:bg-muted/40 hover:border-border group-data-[state=open]/tool-summary:bg-muted/40 group-data-[state=open]/tool-summary:border-border"
     >
-      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:text-foreground">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:text-foreground mobile-touch-target">
         <span className="flex items-center gap-2 min-w-0">
           <Badge
             variant="outline"
@@ -535,15 +534,20 @@ function ToolTriggerRow({
   return (
     <CollapsibleTrigger
       title={tooltip}
-      className="flex w-full cursor-pointer items-center justify-between px-2.5 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:text-foreground"
+      className="flex w-full cursor-pointer items-center justify-between px-2.5 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:text-foreground mobile-touch-target"
     >
       <span className="flex w-full items-center gap-2 min-w-0">
         <StatusIcon name={name} nativeToolType={nativeToolType} state={state} />
         {/* Only the title truncates, so the counts beside it stay visible. */}
         <span className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-[11px]">
-          <span className="min-w-0 truncate">
+          <span
+            className={cn(
+              "min-w-0 truncate",
+              onBodyClick && "mobile-app:flex mobile-app:items-center mobile-app:gap-1",
+            )}
+          >
             {title.verb !== null && (
-              <span className="font-semibold text-foreground mr-1">{title.verb}</span>
+              <span className="font-semibold text-foreground mr-1 mobile-app:shrink-0">{title.verb}</span>
             )}
             <ToolTitleBody title={title} displayPath={displayPath} onBodyClick={onBodyClick} />
           </span>
@@ -605,7 +609,7 @@ function ToolTitleBody({
     <span
       role="link"
       tabIndex={0}
-      className="underline decoration-dotted underline-offset-2 hover:text-foreground transition-colors cursor-pointer"
+      className="mobile-touch-target mobile-app:inline-flex mobile-app:items-center underline decoration-dotted underline-offset-2 hover:text-foreground transition-colors cursor-pointer"
       onClick={(e) => {
         e.stopPropagation();
         onBodyClick();
@@ -618,7 +622,7 @@ function ToolTitleBody({
         }
       }}
     >
-      {displayPath ?? title.body}
+      <span className="mobile-app:truncate">{displayPath ?? title.body}</span>
     </span>
   );
 }
@@ -629,7 +633,7 @@ function ShellCommandLine({ command }: { command: string }) {
   const { env, rest } = splitEnvPrefix(firstLine);
   return (
     // Only the command truncates, so the line count stays visible.
-    <span className="inline-flex max-w-full items-baseline font-mono text-sm">
+    <span className="literal-code inline-flex max-w-full items-baseline font-mono text-sm">
       <span className="min-w-0 truncate">
         {env.length > 0 && <span className="opacity-60">{env}</span>}
         <span>{rest}</span>
