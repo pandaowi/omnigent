@@ -118,7 +118,7 @@ export function SettingsCustomAgentsSection() {
   );
   if (agentId === "new") {
     return (
-      <SettingsItem entry={CUSTOM_AGENT_CREATE_ENTRY} className="@container">
+      <SettingsItem entry={CUSTOM_AGENT_CREATE_ENTRY} className="@container flex-1 flex flex-col">
         <CreateAgentWizard
           onCancel={() => navigate(BASE)}
           onCreate={async (input) => {
@@ -132,7 +132,7 @@ export function SettingsCustomAgentsSection() {
   }
   if (detailId) {
     return (
-      <SettingsItem entry={CUSTOM_AGENT_DETAIL_ENTRY} className="@container">
+      <SettingsItem entry={CUSTOM_AGENT_DETAIL_ENTRY} className="@container px-6 md:px-8 py-6">
         {!detail.data && back}
         {detail.isError && detail.data && (
           <p role="alert" className="mb-4 text-ui">
@@ -177,7 +177,7 @@ export function SettingsCustomAgentsSection() {
     );
   }
   return (
-    <SettingsItem entry={CUSTOM_AGENTS_LIST_ENTRY} className="@container">
+    <SettingsItem entry={CUSTOM_AGENTS_LIST_ENTRY} className="@container px-6 md:px-8 py-6">
       <div className="flex items-center justify-between pb-6">
         <div>
           <h1 className="settings-page-title text-2xl font-medium">Agents &amp; Teams</h1>

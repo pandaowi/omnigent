@@ -456,8 +456,11 @@ export function SettingsPage() {
   return (
     <PageScroll
       maxWidthClassName={section === "custom-agents" ? "max-w-none" : "max-w-4xl"}
-      contentClassName={section === "custom-agents" ? "px-4 md:px-6" : "px-4 md:px-8"}
-      extraBottom="2.5rem"
+      contentClassName={
+        section === "custom-agents" ? "min-h-full flex flex-col px-0" : "px-4 md:px-8"
+      }
+      extraTop={section === "custom-agents" ? "0px" : undefined}
+      extraBottom={section === "custom-agents" ? "0px" : "2.5rem"}
       // Reserve the scrollbar's width so the centered column doesn't shift when
       // switching between a page or tab that scrolls and one that doesn't.
       className="[scrollbar-gutter:stable]"

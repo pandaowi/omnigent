@@ -199,11 +199,13 @@ export function CreateAgentWizard({ onCancel, onCreate, onOpenAgent }: CreateAge
   const selectedHarnessLabel = brainLabels[selectedHarness] ?? selectedHarness;
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-7rem)] rounded-xl border border-border bg-card overflow-hidden">
+    <div className="flex flex-1 flex-col min-h-full bg-background">
       {/* Top Stepper Header */}
-      <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-3.5 bg-card">
+      <header className="flex items-center justify-between gap-4 border-b border-border px-6 py-3.5 bg-background">
         <div className="flex items-center gap-4 min-w-0 overflow-x-auto">
-          <span className="text-sm font-semibold text-foreground shrink-0">Create an agent</span>
+          <span className="text-[13px] font-semibold text-foreground shrink-0">
+            Create an agent
+          </span>
           <span className="h-4 w-px bg-border shrink-0" aria-hidden />
           <nav aria-label="Wizard steps" className="flex items-center gap-2 text-xs shrink-0">
             <StepPill index={1} label="Choose runtime" current={step} />
@@ -219,9 +221,9 @@ export function CreateAgentWizard({ onCancel, onCreate, onOpenAgent }: CreateAge
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-8">
+      <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
         {step === 1 && (
-          <div className="mx-auto max-w-2xl space-y-5">
+          <div className="mx-auto max-w-[680px] space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h1 className="text-lg font-semibold text-foreground">
@@ -391,7 +393,7 @@ export function CreateAgentWizard({ onCancel, onCreate, onOpenAgent }: CreateAge
                                         setSelectedHarness(har.id);
                                         setModel("");
                                       }}
-                                      className="accent-primary size-3.5 shrink-0"
+                                      className="accent-foreground size-3.5 shrink-0"
                                     />
                                     <CpuIcon
                                       className="size-3.5 text-muted-foreground shrink-0"
@@ -402,19 +404,19 @@ export function CreateAgentWizard({ onCancel, onCreate, onOpenAgent }: CreateAge
                                       {har.id}
                                     </span>
                                   </div>
-                                  <span className="shrink-0">
+                                  <span className="shrink-0 text-[11px]">
                                     {readiness === true ? (
-                                      <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
+                                      <span className="inline-flex items-center gap-1.5 text-emerald-500">
+                                        <span className="size-1.5 rounded-full bg-emerald-500" />
                                         Ready
                                       </span>
                                     ) : readiness === "needs-auth" ? (
-                                      <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-500">
+                                      <span className="inline-flex items-center gap-1.5 text-amber-500">
+                                        <span className="size-1.5 rounded-full bg-amber-500" />
                                         Needs auth
                                       </span>
                                     ) : (
-                                      <span className="text-[11px] text-muted-foreground/70">
-                                        Available
-                                      </span>
+                                      <span className="text-muted-foreground/70">Available</span>
                                     )}
                                   </span>
                                 </label>
@@ -432,7 +434,7 @@ export function CreateAgentWizard({ onCancel, onCreate, onOpenAgent }: CreateAge
         )}
 
         {step === 2 && (
-          <div className="mx-auto max-w-2xl space-y-6">
+          <div className="mx-auto max-w-[680px] space-y-6">
             <div>
               <h1 className="text-lg font-semibold text-foreground">Configure the agent</h1>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -847,7 +849,7 @@ export function CreateAgentWizard({ onCancel, onCreate, onOpenAgent }: CreateAge
       </div>
 
       {/* Bottom Action Footer */}
-      <footer className="flex items-center justify-between border-t border-border px-5 py-3 bg-card">
+      <footer className="mt-auto flex items-center justify-between border-t border-border px-6 py-3.5 bg-background">
         <span className="text-xs text-muted-foreground tabular-nums">Step {step} of 3</span>
         <div className="flex items-center gap-2">
           {step === 1 && (
