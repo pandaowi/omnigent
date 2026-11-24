@@ -30,7 +30,11 @@ import {
 import { Link, useLocation } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
-import { customAgentsSettingsEnabled, isSingleUserMode } from "@/lib/capabilities";
+import {
+  adminGeneralSettingsAvailable,
+  customAgentsSettingsEnabled,
+  isSingleUserMode,
+} from "@/lib/capabilities";
 import { useIsAdmin, useIsSupervisor } from "@/hooks/useIsAdmin";
 import { isElectronShell } from "@/lib/nativeBridge";
 import { cn } from "@/lib/utils";
@@ -79,6 +83,11 @@ const SECTION_IDS: readonly SettingsSectionId[] = [
   "updates",
 ];
 
+/** Where a section lives; the sidebar link and its ⌘K command both go here. */
+export function settingsSectionPath(id: SettingsSectionId): string {
+  return `/settings/${id}`;
+}
+
 interface SettingsNavItem {
   id: SettingsSectionId;
   label: string;
@@ -99,7 +108,8 @@ interface SettingsNavGroup {
  * absent only in header single-user mode. The Admin group (Members / Policies)
  * appears for admins in ANY multi-user mode since both accounts and OIDC share
  * the `users.is_admin` flag and the server enforces admin on every route; the
- * Desktop group (Local CLI) appears only in the Electron shell.
+ * Desktop group (Local CLI) appears only in the Electron shell. Harnesses is
+ * left out when the deployment curated out every harness.
  */
 export function settingsNavGroups(
   hasAuthSession: boolean,
@@ -110,7 +120,8 @@ export function settingsNavGroups(
   customAgentsEnabled = false,
   mcpEnabled = false,
   isSupervisor = false,
-  nestedAgentsEnabled = false,
+  adminGeneralEnabled = false,
+  harnessesOffered = true,
 ): SettingsNavGroup[] {
   const harnesses: SettingsNavItem = {
     id: "harnesses",
@@ -124,7 +135,7 @@ export function settingsNavGroups(
     { id: "shortcuts", label: "Keyboard shortcuts", icon: KeyboardIcon, hideOnMobile: true },
     { id: "import", label: "Import sessions", icon: DownloadIcon },
   ];
-  if (!customAgentsEnabled) general.splice(2, 0, harnesses);
+  if (!customAgentsEnabled && harnessesOffered) general.splice(2, 0, harnesses);
   // Provider credentials and MCP accounts have separate settings pages.
   if (integrationsEnabled) {
     general.splice(2, 0, {
@@ -145,7 +156,10 @@ export function settingsNavGroups(
   if (customAgentsEnabled) {
     groups.push({
       title: "Customize",
-      items: [harnesses, { id: "custom-agents", label: "Agents & Teams", icon: BotIcon }],
+      items: [
+        ...(harnessesOffered ? [harnesses] : []),
+        { id: "custom-agents", label: "Agents & Teams", icon: BotIcon },
+      ],
     });
   }
   // Keep shell-specific settings directly after the cross-platform preferences.
@@ -158,10 +172,10 @@ export function settingsNavGroups(
       ],
     });
   }
-  // Admin: server-wide management, admin-only.
+  // Admin: server-wide management, admin-only (single-user servers permit these settings).
   // Supervisor: division-scoped management (their division & members).
   const adminItems: SettingsNavItem[] = [];
-  if ((isAdmin || isSingleUser) && nestedAgentsEnabled) {
+  if ((isAdmin || isSingleUser) && adminGeneralEnabled) {
     adminItems.push({ id: "admin", label: "General", icon: SettingsIcon });
   }
   if (isAdmin) {
@@ -219,7 +233,7 @@ export function useSettingsRoute(): {
   const isValidSection =
     (SECTION_IDS as readonly string[]).includes(next) &&
     !(singleUser && (next === "members" || next === "sharing" || next === "divisions" || next === "runners")) &&
-    !(next === "admin" && (info === "loading" || info.sibling_sessions !== true)) &&
+    !(next === "admin" && !adminGeneralSettingsAvailable(info)) &&
     !(next === "custom-agents" && !customAgentsSettingsEnabled(info));
   const section = isValidSection ? (next as SettingsSectionId) : defaultSection;
   const harness = section === "harnesses" ? segments[idx + 2] : undefined;
@@ -261,8 +275,11 @@ export function useTrackSettingsReturn(): void {
  */
 export function SettingsSidebarBody({
   onNavClick,
+  harnessesOffered = true,
 }: {
   onNavClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+  /** False when the deployment curated out every harness, which drops Harnesses. */
+  harnessesOffered?: boolean;
 }) {
   const info = useServerInfo();
   // Account section shows whenever there's a login session (accounts OR OIDC).
@@ -285,7 +302,8 @@ export function SettingsSidebarBody({
     customAgentsSettingsEnabled(info),
     mcpEnabled,
     isSupervisor,
-    info !== "loading" && info.sibling_sessions === true,
+    adminGeneralSettingsAvailable(info),
+    harnessesOffered,
   );
 
   return (
@@ -340,7 +358,7 @@ export function SettingsSidebarBody({
                     )}
                   >
                     <Link
-                      to={`/settings/${item.id}`}
+                      to={settingsSectionPath(item.id)}
                       onClick={onNavClick}
                       data-testid={`settings-nav-${item.id}`}
                       componentId={`settings.nav.${item.id}`}

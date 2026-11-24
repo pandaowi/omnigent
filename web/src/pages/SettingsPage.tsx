@@ -42,8 +42,10 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { useViewerId } from "@/hooks/useViewerId";
+import { useProactiveAgentSettings } from "@/hooks/useProactiveAgentSettings";
 import {
   AlertCircleIcon,
   ArchiveRestoreIcon,
@@ -58,8 +60,10 @@ import {
   FingerprintIcon,
   GitPullRequestIcon,
   KeyRoundIcon,
+  ListChecksIcon,
   Loader2Icon,
   LogOutIcon,
+  FoldVerticalIcon,
   MessagesSquareIcon,
   MinusIcon,
   MonitorIcon,
@@ -84,6 +88,44 @@ import { useTheme } from "next-themes";
 import { PageScroll } from "@/components/PageScroll";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { SettingsLabel } from "@/components/SettingsLabel";
+import { ProactiveAgentSettingControl } from "@/components/ProactiveAgentSettingControl";
+import { LOCAL_CLI_ENTRY } from "@/pages/settings/search/catalog/cli";
+import {
+  CHECK_FOR_UPDATES_ENTRY,
+  INSTALL_UPDATES_ON_QUIT_ENTRY,
+  UPDATE_MODE_ENTRY,
+  UPDATE_MODE_LABELS,
+} from "@/pages/settings/search/catalog/updates";
+import { SettingsEntryLabel, SettingsItem } from "@/pages/settings/search/SettingsItem";
+import {
+  settingsControlProps,
+  settingsDescriptionId,
+  settingsLabelId,
+} from "@/pages/settings/search/settingsControl";
+import {
+  ARCHIVED_RETENTION_OPTIONS,
+  ARCHIVED_SESSIONS_ENTRY,
+} from "@/pages/settings/search/catalog/archived";
+import {
+  SettingsDataRegion,
+  settingsOverlayProps,
+  settingsRowOverlayProps,
+  settingsRuntimeChoiceProps,
+} from "@/pages/settings/search/settingsOwnership";
+import { MCP_SERVICES_ENTRY } from "@/pages/settings/search/catalog/mcp";
+import {
+  ACCOUNT_PASSWORD_ENTRY,
+  ACCOUNT_SIGN_OUT_ENTRY,
+} from "@/pages/settings/search/catalog/account";
+import {
+  ALWAYS_USE_WORKTREE_ENTRY,
+  DEFAULT_BASE_BRANCH_ENTRY,
+  DELETE_WORKTREES_ON_ARCHIVE_ENTRY,
+} from "@/pages/settings/search/catalog/git";
+import {
+  DATABRICKS_CONNECTION_ENTRY,
+  GITHUB_CONNECTION_ENTRY,
+} from "@/pages/settings/search/catalog/integrations";
 import { SessionTitleInstructionsControl } from "@/components/SessionTitleInstructionsControl";
 import { McpRegistryConnections } from "@/components/McpRegistry";
 import { ThemeColorPicker } from "@/components/theme/ThemeColorPicker";
@@ -93,6 +135,7 @@ import { PaletteChip, PaletteSwatchPreview } from "@/components/theme/Appearance
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { BrowserAgentToolsSettingsGroup } from "@/components/BrowserPane/agentTools/BrowserAgentToolsSettingsGroup";
 import {
   Select,
   SelectContent,
@@ -131,9 +174,13 @@ import {
   getCurrentIsAdmin,
   getCurrentIsSupervisor,
   getCurrentPrimaryDivision,
+  getCurrentAdminEligibility,
   resolveIdentity,
+  subscribeIdentity,
 } from "@/lib/identity";
+import { isAdminViewEnabled, setAdminViewEnabled } from "@/lib/adminView";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
+import { isBootFallbackInfo } from "@/lib/bootCapabilities";
 import { useOmnigentAnalytics, useOmnigentPageView } from "@/lib/analytics";
 import {
   type Conversation,
@@ -184,6 +231,11 @@ import {
   writeCodeFontWeight,
 } from "@/lib/codeFontPreferences";
 import {
+  CODE_BLOCK_WORD_WRAP_STORAGE_KEY,
+  DEFAULT_CODE_BLOCK_WORD_WRAP,
+  writeCodeBlockWordWrap,
+} from "@/lib/codeWrapPreferences";
+import {
   readTerminalThemeMode,
   TERMINAL_THEME_DEFAULT,
   writeTerminalThemeMode,
@@ -208,6 +260,12 @@ import {
   writeTranscriptViewDefault,
   type TranscriptViewDefault,
 } from "@/lib/transcriptViewPreferences";
+import {
+  DEFAULT_PEER_SESSION_MESSAGE_DISPLAY,
+  usePeerSessionMessageDisplay,
+  writePeerSessionMessageDisplay,
+  type PeerSessionMessageDisplay,
+} from "@/lib/peerSessionMessagePreferences";
 import {
   DEFAULT_FOLD_ASSISTANT_NARRATION,
   FOLD_ASSISTANT_NARRATION_STORAGE_KEY,
@@ -291,7 +349,7 @@ import {
   writeCustomTheme,
 } from "@/lib/customTheme";
 import { useHostTheme } from "@/lib/embedded";
-import { getOmnigentThemeSettingsUrl } from "@/lib/host";
+import { getOmnigentThemeSettingsUrl, isDatabricksWorkspace } from "@/lib/host";
 import {
   applyImportedSettings,
   collectSettings,
@@ -310,6 +368,7 @@ import {
   updateBridge,
 } from "@/lib/nativeBridge";
 import { readOpenLinksInApp, writeOpenLinksInApp } from "@/lib/linkOpenPreferences";
+import { PROACTIVE_AGENT_DISPLAY_NAME } from "@/lib/proactiveInbox";
 import { cn } from "@/lib/utils";
 import {
   readBackgroundSessionTitlesEnabled,
@@ -410,17 +469,19 @@ export function SettingsPage() {
       {section === "git" && <GitSection />}
       {section === "integrations" && <IntegrationsSection />}
       {section === "mcp" && (
-        <Section title="MCP">
-          {info !== "loading" && info.enabled_connections?.includes("mcp") ? (
-            <McpRegistryConnections />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {info === "loading"
-                ? "Loading MCP services…"
-                : "MCP services are not configured on this server."}
-            </p>
-          )}
-        </Section>
+        <SettingsItem entry={MCP_SERVICES_ENTRY}>
+          <Section title="MCP">
+            {info !== "loading" && info.enabled_connections?.includes("mcp") ? (
+              <McpRegistryConnections />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {info === "loading"
+                  ? "Loading MCP services…"
+                  : "MCP services are not configured on this server."}
+              </p>
+            )}
+          </Section>
+        </SettingsItem>
       )}
       {section === "shortcuts" && <ShortcutsSection />}
       {section === "import" && <ImportSection />}
@@ -474,6 +535,16 @@ const transcriptViewCards: {
   { value: "terminal", label: "Terminal", icon: TerminalIcon },
 ];
 
+const peerSessionMessageCards: {
+  value: PeerSessionMessageDisplay;
+  label: string;
+  icon: typeof MessagesSquareIcon;
+}[] = [
+  { value: "collapse", label: "Collapse", icon: FoldVerticalIcon },
+  { value: "show", label: "Show", icon: EyeIcon },
+  { value: "hide", label: "Hide", icon: EyeOffIcon },
+];
+
 const workspacePanelCards: {
   value: WorkspacePanelDefault;
   label: string;
@@ -492,6 +563,7 @@ const workspaceTabCards: {
   { value: "changes", label: "Changes", icon: FileDiffIcon },
   { value: "github", label: "Pull Requests", icon: GitPullRequestIcon },
   { value: "subagents", label: "Agents", icon: BotIcon },
+  { value: "tasks", label: "Tasks", icon: ListChecksIcon },
 ];
 
 /** Inline icon and label for compact settings choices. */
@@ -986,6 +1058,33 @@ function HideUnconfiguredHarnessesControl() {
   );
 }
 
+/** How messages other sessions send appear in a chat, e.g. a supervisor's. */
+function PeerSessionMessageDisplayControl() {
+  const value = usePeerSessionMessageDisplay();
+  const labelId = useId();
+  return (
+    <ThemeSubsection
+      labelId={labelId}
+      title="Messages from other sessions"
+      helper="Collapse or hide messages that agents in other sessions send to a chat. The agent still reads them in full."
+    >
+      <CardRadioGroup<PeerSessionMessageDisplay>
+        compact
+        labelledBy={labelId}
+        value={value}
+        onSelect={writePeerSessionMessageDisplay}
+        componentId="settings.appearance.peer_session_messages"
+        className="flex flex-wrap gap-2"
+        items={peerSessionMessageCards.map((card) => ({
+          value: card.value,
+          testId: `peer-session-messages-${card.value}`,
+          body: iconButtonBody(card.icon, card.label),
+        }))}
+      />
+    </ThemeSubsection>
+  );
+}
+
 /** Opt-in: fold other agents' progress messages the way Codex turns fold. */
 function FoldAssistantNarrationControl() {
   const enabled = useFoldAssistantNarration();
@@ -1118,6 +1217,7 @@ function AppearanceSection() {
 
     writeHideUnconfiguredHarnesses(DEFAULT_HIDE_UNCONFIGURED_HARNESSES);
     writeFoldAssistantNarration(DEFAULT_FOLD_ASSISTANT_NARRATION);
+    writePeerSessionMessageDisplay(DEFAULT_PEER_SESSION_MESSAGE_DISPLAY);
     writeProjectFolderCollapse(DEFAULT_PROJECT_FOLDER_COLLAPSE);
     writeProjectFolderPageSize(PROJECT_FOLDER_PAGE_SIZE);
     writeSessionRowQuickActions(DEFAULT_SESSION_ROW_QUICK_ACTIONS);
@@ -1127,6 +1227,7 @@ function AppearanceSection() {
     writeCodeFontSizePx(CODE_FONT_SIZE_DEFAULT);
     writeCodeFontFamily(CODE_FONT_FAMILY_DEFAULT);
     writeCodeFontWeight(CODE_FONT_WEIGHT_DEFAULT);
+    writeCodeBlockWordWrap(DEFAULT_CODE_BLOCK_WORD_WRAP);
 
     // Remove the persisted keys so this device has no appearance overrides at
     // all. Some write helpers already remove the key for the default value;
@@ -1140,6 +1241,7 @@ function AppearanceSection() {
           "omnigent:code-font-size",
           "omnigent:code-font-family",
           "omnigent:code-font-weight",
+          CODE_BLOCK_WORD_WRAP_STORAGE_KEY,
           "omnigent:terminal-theme",
           "omnigent:ui-theme-palette",
           "omnigent:custom-theme",
@@ -1229,6 +1331,9 @@ function AppearanceSection() {
             </div>
             <div className="mt-4 border-t border-border pt-4">
               <FoldAssistantNarrationControl />
+            </div>
+            <div className="mt-4 border-t border-border pt-4">
+              <PeerSessionMessageDisplayControl />
             </div>
           </SettingsGroup>
 
@@ -1484,15 +1589,19 @@ function GithubIntegrationControl() {
 
   const returnTo = `${window.location.pathname}${window.location.search}`;
 
-  if (status === "loading") {
-    return <p className="text-sm text-muted-foreground">Checking…</p>;
-  }
-  if (status === null) {
-    return <p className="text-sm text-muted-foreground">GitHub status is unavailable.</p>;
+  if (status === "loading" || status === null) {
+    return (
+      <SettingsItem entry={GITHUB_CONNECTION_ENTRY}>
+        <SettingsEntryLabel entry={GITHUB_CONNECTION_ENTRY} labelClassName="text-sm" />
+        <p className="text-sm text-muted-foreground">
+          {status === "loading" ? "Checking…" : "GitHub status is unavailable."}
+        </p>
+      </SettingsItem>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <SettingsItem entry={GITHUB_CONNECTION_ENTRY} className="flex flex-col gap-4">
       {notice === "connected" && (
         <div
           role="status"
@@ -1511,14 +1620,14 @@ function GithubIntegrationControl() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <SettingsLabel
-          label="GitHub"
+        <SettingsEntryLabel
+          entry={GITHUB_CONNECTION_ENTRY}
           labelClassName="text-sm"
           className="flex-1"
           description={
             status.connected && status.login
               ? `Connected as ${status.login}. New sandboxes use your gh and git credentials and add your public SSH keys for SSH access.`
-              : "Connect GitHub to use your gh and git credentials and add your public SSH keys in new sandboxes."
+              : GITHUB_CONNECTION_ENTRY.description
           }
         />
         <div className="flex shrink-0 items-center gap-2">
@@ -1527,6 +1636,7 @@ function GithubIntegrationControl() {
               variant="ghost"
               size="sm"
               className="h-9"
+              {...settingsControlProps(GITHUB_CONNECTION_ENTRY, "disconnect")}
               disabled={busy}
               data-testid="github-disconnect"
               onClick={() => void onDisconnect()}
@@ -1537,6 +1647,7 @@ function GithubIntegrationControl() {
             <Button
               size="sm"
               className="h-9 gap-2"
+              {...settingsControlProps(GITHUB_CONNECTION_ENTRY, "connect")}
               disabled={busy}
               data-testid="github-connect"
               onClick={() => beginGithubConnect(returnTo)}
@@ -1552,6 +1663,7 @@ function GithubIntegrationControl() {
         <p className="text-xs text-muted-foreground">
           The app may need to be installed on your repositories.{" "}
           <a
+            {...settingsControlProps(GITHUB_CONNECTION_ENTRY, "manageInstallation")}
             href={status.install_url}
             target="_blank"
             rel="noreferrer"
@@ -1562,7 +1674,7 @@ function GithubIntegrationControl() {
           .
         </p>
       )}
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -1574,28 +1686,25 @@ function GithubIntegrationControl() {
  */
 function AlwaysUseWorktreeControl() {
   const [value, setValue] = useState(() => readAlwaysUseWorktree());
-  const labelId = useId();
   const toggle = useCallback((next: boolean) => {
     setValue(next);
     writeAlwaysUseWorktree(next);
   }, []);
   return (
-    <div className="flex items-start justify-between gap-6">
-      <SettingsLabel
-        label="Always use a random worktree"
-        labelId={labelId}
-        className="flex-1"
-        description="Use a fresh, randomly named worktree for new sessions in Git workspaces. Project settings override this default."
-      />
+    <SettingsItem
+      entry={ALWAYS_USE_WORKTREE_ENTRY}
+      className="flex items-start justify-between gap-6"
+    >
+      <SettingsEntryLabel entry={ALWAYS_USE_WORKTREE_ENTRY} className="flex-1" />
       <Switch
-        aria-labelledby={labelId}
+        {...settingsControlProps(ALWAYS_USE_WORKTREE_ENTRY)}
         checked={value}
         onCheckedChange={toggle}
         data-testid="settings-always-use-worktree-toggle"
         className="mt-0.5 shrink-0"
         componentId="settings.git.always_use_worktree"
       />
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -1605,28 +1714,25 @@ function AlwaysUseWorktreeControl() {
  */
 function DeleteWorktreesOnArchiveControl() {
   const [value, setValue] = useState(() => readDeleteWorktreesOnArchive() === true);
-  const labelId = useId();
   const toggle = useCallback((next: boolean) => {
     setValue(next);
     writeDeleteWorktreesOnArchive(next);
   }, []);
   return (
-    <div className="flex items-start justify-between gap-6">
-      <SettingsLabel
-        label="Delete worktrees for archived sessions"
-        labelId={labelId}
-        className="flex-1"
-        description="Delete the session's worktree and any uncommitted changes when archived. The branch is kept."
-      />
+    <SettingsItem
+      entry={DELETE_WORKTREES_ON_ARCHIVE_ENTRY}
+      className="flex items-start justify-between gap-6"
+    >
+      <SettingsEntryLabel entry={DELETE_WORKTREES_ON_ARCHIVE_ENTRY} className="flex-1" />
       <Switch
-        aria-labelledby={labelId}
+        {...settingsControlProps(DELETE_WORKTREES_ON_ARCHIVE_ENTRY)}
         checked={value}
         onCheckedChange={toggle}
         data-testid="settings-delete-worktrees-on-archive-toggle"
         className="mt-0.5 shrink-0"
         componentId="settings.git.delete_worktrees_on_archive"
       />
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -1680,15 +1786,19 @@ function DatabricksIntegrationControl() {
   if (status !== "loading" && status !== null && !status.enabled) {
     return null;
   }
-  if (status === "loading") {
-    return <p className="text-sm text-muted-foreground">Checking…</p>;
-  }
-  if (status === null) {
-    return <p className="text-sm text-muted-foreground">Databricks status is unavailable.</p>;
+  if (status === "loading" || status === null) {
+    return (
+      <SettingsItem entry={DATABRICKS_CONNECTION_ENTRY}>
+        <SettingsEntryLabel entry={DATABRICKS_CONNECTION_ENTRY} labelClassName="text-sm" />
+        <p className="text-sm text-muted-foreground">
+          {status === "loading" ? "Checking…" : "Databricks status is unavailable."}
+        </p>
+      </SettingsItem>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <SettingsItem entry={DATABRICKS_CONNECTION_ENTRY} className="flex flex-col gap-4">
       {notice === "connected" && (
         <div
           role="status"
@@ -1707,14 +1817,14 @@ function DatabricksIntegrationControl() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <SettingsLabel
-          label="Databricks"
+        <SettingsEntryLabel
+          entry={DATABRICKS_CONNECTION_ENTRY}
           labelClassName="text-sm"
           className="flex-1"
           description={
             status.connected && status.workspace_host
               ? `Connected to ${status.workspace_host}${status.databricks_user ? ` as ${status.databricks_user}` : ""}. New sandboxes access Unity Gateway (MCP and model serving) as you.`
-              : "Connect a Databricks workspace to access Unity Gateway (MCP and model serving) as you in new sandboxes."
+              : DATABRICKS_CONNECTION_ENTRY.description
           }
         />
         <div className="flex shrink-0 items-center gap-2">
@@ -1723,6 +1833,7 @@ function DatabricksIntegrationControl() {
               variant="ghost"
               size="sm"
               className="h-9"
+              {...settingsControlProps(DATABRICKS_CONNECTION_ENTRY, "disconnect")}
               disabled={busy}
               data-testid="databricks-disconnect"
               onClick={() => void onDisconnect()}
@@ -1732,6 +1843,7 @@ function DatabricksIntegrationControl() {
           ) : (
             <>
               <Input
+                {...settingsControlProps(DATABRICKS_CONNECTION_ENTRY, "workspace")}
                 type="text"
                 inputMode="url"
                 placeholder="workspace-host.cloud.databricks.com"
@@ -1743,6 +1855,7 @@ function DatabricksIntegrationControl() {
               <Button
                 size="sm"
                 className="h-9"
+                {...settingsControlProps(DATABRICKS_CONNECTION_ENTRY, "connect")}
                 disabled={busy || workspace.trim() === ""}
                 data-testid="databricks-connect"
                 onClick={() => beginDatabricksConnect(workspace.trim(), returnTo)}
@@ -1753,7 +1866,7 @@ function DatabricksIntegrationControl() {
           )}
         </div>
       </div>
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -1996,7 +2109,54 @@ function TerminalClipboardControl() {
   );
 }
 
+function AdminViewControl() {
+  const eligible = useSyncExternalStore(subscribeIdentity, getCurrentAdminEligibility, () => false);
+  const info = useServerInfo();
+  // Failed discovery has no capability flag; keep an existing off cookie recoverable.
+  if (
+    !eligible ||
+    info === "loading" ||
+    isBootFallbackInfo(info) ||
+    info.admin_view === false ||
+    (isAdminViewEnabled() && (!info.admin_view || info.single_user || isDatabricksWorkspace()))
+  )
+    return null;
+  return (
+    <SettingsGroup title="Administration">
+      <div className="flex items-center justify-between gap-4">
+        <SettingsLabel
+          label="Admin view"
+          description="Turn off to use your normal session access."
+        />
+        <Switch
+          aria-label="Admin view"
+          checked={isAdminViewEnabled()}
+          onCheckedChange={(enabled) => {
+            try {
+              setAdminViewEnabled(enabled);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Could not change admin view.");
+            }
+          }}
+          componentId="settings.general.admin_view"
+        />
+      </div>
+    </SettingsGroup>
+  );
+}
+
 /** App-wide behavior settings. */
+/** The viewer's Omni Advisor switch, where the server offers it. */
+function ProactiveAgentGroup() {
+  const { available } = useProactiveAgentSettings();
+  if (!available) return null;
+  return (
+    <SettingsGroup title={PROACTIVE_AGENT_DISPLAY_NAME} testId="settings-group-proactive-agent">
+      <ProactiveAgentSettingControl scope="me" />
+    </SettingsGroup>
+  );
+}
+
 function GeneralSection() {
   const info = useServerInfo();
   const titleInstructions = info !== "loading" && info.session_title_instructions === true;
@@ -2023,16 +2183,19 @@ function GeneralSection() {
         <SettingsGroup title="Terminal" testId="settings-group-terminal">
           <TerminalClipboardControl />
         </SettingsGroup>
+        <ProactiveAgentGroup />
         {supportsBrowser() && (
           <SettingsGroup title="Links" testId="settings-group-links">
             <OpenLinksInAppControl />
           </SettingsGroup>
         )}
+        <BrowserAgentToolsSettingsGroup />
         {supportsGlobalShortcut() && (
           <SettingsGroup title="Desktop app" testId="settings-group-desktop-app">
             <GlobalShortcutControl />
           </SettingsGroup>
         )}
+        <AdminViewControl />
       </div>
     </Section>
   );
@@ -2053,15 +2216,14 @@ function DefaultBaseBranchControl() {
   }, []);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-      <SettingsLabel
-        label="Default base branch"
-        className="flex-1"
-        description="Prefill the base branch for new worktree branches. Leave blank for no prefill."
-      />
+    <SettingsItem
+      entry={DEFAULT_BASE_BRANCH_ENTRY}
+      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3"
+    >
+      <SettingsEntryLabel entry={DEFAULT_BASE_BRANCH_ENTRY} className="flex-1" />
       <Input
+        {...settingsControlProps(DEFAULT_BASE_BRANCH_ENTRY)}
         type="text"
-        aria-label="Default base branch"
         data-testid="settings-default-base-branch-input"
         placeholder="e.g. main"
         spellCheck={false}
@@ -2072,7 +2234,7 @@ function DefaultBaseBranchControl() {
         onChange={(e) => update(e.target.value)}
         componentId="settings.git.default_branch"
       />
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -2523,7 +2685,7 @@ function LocalCliSection() {
         {status === null ? (
           <p className="text-ui text-muted-foreground">CLI status is unavailable.</p>
         ) : (
-          <div className="flex flex-col gap-4">
+          <SettingsItem entry={LOCAL_CLI_ENTRY} className="flex flex-col gap-4">
             <div className="flex items-center gap-2 text-ui">
               <span
                 aria-hidden
@@ -2576,6 +2738,7 @@ function LocalCliSection() {
                 {status.source === "configured" && (
                   <div>
                     <Button
+                      {...settingsControlProps(LOCAL_CLI_ENTRY, "reset")}
                       variant="ghost"
                       size="sm"
                       disabled={busy}
@@ -2587,19 +2750,12 @@ function LocalCliSection() {
                 )}
               </>
             )}
-          </div>
+          </SettingsItem>
         )}
       </SettingsGroup>
     </Section>
   );
 }
-
-const UPDATE_MODE_LABELS: Record<UpdateMode, string> = {
-  default: "Automatic (check periodically, ask before installing)",
-  start: "Check when IPLabs Agent Platform starts",
-  manual: "Manual only",
-  none: "Off",
-};
 
 function UpdatesSection() {
   const bridge = updateBridge();
@@ -2691,46 +2847,76 @@ function UpdatesSection() {
       ) : (
         <div className="flex max-w-2xl flex-col gap-6">
           <SettingsGroup title="Preferences" testId="settings-group-update-preferences">
-            <label className="flex flex-col gap-2">
-              <span className="text-ui font-normal md:font-medium">Update mode</span>
-              <Select
-                value={config.mode}
-                onValueChange={(value) => void persistConfig({ mode: value as UpdateMode })}
-                disabled={saving}
-                componentId="settings.updates.mode"
-                valueHasNoPii
-              >
-                <SelectTrigger className="w-full max-w-md" data-testid="update-mode-select">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(UPDATE_MODE_LABELS) as UpdateMode[]).map((mode) => (
-                    <SelectItem key={mode} value={mode}>
-                      {UPDATE_MODE_LABELS[mode]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
+            <SettingsItem entry={UPDATE_MODE_ENTRY}>
+              <div className="flex flex-col gap-2">
+                <label className="flex flex-col gap-2">
+                  <span
+                    id={settingsLabelId(UPDATE_MODE_ENTRY)}
+                    className="text-ui font-normal md:font-medium"
+                  >
+                    {UPDATE_MODE_ENTRY.label}
+                  </span>
+                  <Select
+                    value={config.mode}
+                    onValueChange={(value) => void persistConfig({ mode: value as UpdateMode })}
+                    disabled={saving}
+                    componentId="settings.updates.mode"
+                    valueHasNoPii
+                  >
+                    <SelectTrigger
+                      {...settingsControlProps(UPDATE_MODE_ENTRY)}
+                      className="w-full max-w-md"
+                      data-testid="update-mode-select"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent {...settingsOverlayProps(UPDATE_MODE_ENTRY)}>
+                      {(Object.keys(UPDATE_MODE_LABELS) as UpdateMode[]).map((mode) => (
+                        <SelectItem key={mode} value={mode}>
+                          {UPDATE_MODE_LABELS[mode]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <span
+                  id={settingsDescriptionId(UPDATE_MODE_ENTRY)}
+                  className="text-sm text-muted-foreground"
+                >
+                  {UPDATE_MODE_ENTRY.description}
+                </span>
+              </div>
+            </SettingsItem>
 
-            <div className="mt-4 flex items-center justify-between gap-4 border-t border-border pt-4">
-              <SettingsLabel
-                label="Install downloaded updates on next quit"
-                description="Applies only after you choose to download an update."
-              />
-              <Switch
-                checked={config.autoInstall}
-                onCheckedChange={(checked) => void persistConfig({ autoInstall: checked })}
-                disabled={saving}
-                aria-label="Install downloaded updates on next quit"
-                componentId="settings.updates.auto_install"
-              />
+            <div className="mt-4 border-t border-border pt-4">
+              <SettingsItem
+                entry={INSTALL_UPDATES_ON_QUIT_ENTRY}
+                className="flex items-center justify-between gap-4"
+              >
+                <SettingsLabel
+                  label={INSTALL_UPDATES_ON_QUIT_ENTRY.label}
+                  labelId={settingsLabelId(INSTALL_UPDATES_ON_QUIT_ENTRY)}
+                  descriptionId={settingsDescriptionId(INSTALL_UPDATES_ON_QUIT_ENTRY)}
+                  description={INSTALL_UPDATES_ON_QUIT_ENTRY.description}
+                />
+                <Switch
+                  {...settingsControlProps(INSTALL_UPDATES_ON_QUIT_ENTRY)}
+                  checked={config.autoInstall}
+                  onCheckedChange={(checked) => void persistConfig({ autoInstall: checked })}
+                  disabled={saving}
+                  componentId="settings.updates.auto_install"
+                />
+              </SettingsItem>
             </div>
           </SettingsGroup>
 
           <SettingsGroup title="Actions" testId="settings-group-update-actions">
-            <div className="flex flex-wrap items-center gap-3">
+            <SettingsItem
+              entry={CHECK_FOR_UPDATES_ENTRY}
+              className="flex flex-wrap items-center gap-3"
+            >
               <Button
+                {...settingsControlProps(CHECK_FOR_UPDATES_ENTRY, "check")}
                 onClick={() => void onCheck()}
                 loading={checking}
                 componentId="settings.updates.check_now"
@@ -2738,7 +2924,7 @@ function UpdatesSection() {
                 Check for updates now
               </Button>
               {saving && <span className="text-sm text-muted-foreground">Saving…</span>}
-            </div>
+            </SettingsItem>
           </SettingsGroup>
 
           {lastCheckError && (
@@ -2758,6 +2944,7 @@ function UpdatesSection() {
 
 function AccountSection() {
   const info = useServerInfo();
+  const capabilitiesLoading = info === "loading" || isBootFallbackInfo(info);
   const accountsEnabled = info !== "loading" && info.accounts_enabled;
   const appName = useAppName();
   // Identity for display. Sourced from the mode-agnostic `/v1/me` probe so it
@@ -2784,6 +2971,7 @@ function AccountSection() {
   const [pwDone, setPwDone] = useState(false);
 
   useEffect(() => {
+    if (capabilitiesLoading) return;
     void (async () => {
       const userId = await resolveIdentity();
       setMe(
@@ -2804,7 +2992,7 @@ function AccountSection() {
             },
       );
     })();
-  }, []);
+  }, [capabilitiesLoading]);
 
   useEffect(() => {
     if (accountsEnabled && typeof getMe === "function") {
@@ -3236,14 +3424,6 @@ function dateGroupLabel(timestampSec: number, now: Date = new Date()): string {
   return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
-const RETENTION_OPTIONS: { label: string; value: string; days: number | null }[] = [
-  { label: "Never", value: "never", days: null },
-  { label: "After 7 days", value: "7", days: 7 },
-  { label: "After 30 days", value: "30", days: 30 },
-  { label: "After 60 days", value: "60", days: 60 },
-  { label: "After 90 days", value: "90", days: 90 },
-];
-
 function retentionDaysToSelectValue(days: number | null): string {
   if (days === null) return "never";
   return String(days);
@@ -3392,224 +3572,250 @@ function ArchivedSection() {
   }, [archived]);
 
   return (
-    <Section
-      title="Archived sessions"
-      description="Restore archived sessions to the sidebar or delete them permanently."
-    >
-      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div className="flex items-center gap-2">
-          <label htmlFor="archived-retention" className="text-ui text-muted-foreground">
-            Mark as expired after
-          </label>
-          <Select
-            value={retentionDaysToSelectValue(retentionDays)}
-            onValueChange={(value) => {
-              const days = selectValueToRetentionDays(value);
-              setRetentionDays(days);
-              writeRetentionDays(days);
-            }}
-          >
-            <SelectTrigger
-              id="archived-retention"
-              aria-label="Mark archived sessions as expired after"
-              data-testid="archived-retention"
-              className="w-40"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              {RETENTION_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {items.length > 0 && (
+    <SettingsItem entry={ARCHIVED_SESSIONS_ENTRY}>
+      <Section
+        title={ARCHIVED_SESSIONS_ENTRY.label}
+        description={ARCHIVED_SESSIONS_ENTRY.description}
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="flex items-center gap-2">
-            <label htmlFor="archived-project-filter" className="text-ui text-muted-foreground">
-              Project
+            <label htmlFor="archived-retention" className="text-ui text-muted-foreground">
+              Mark as expired after
             </label>
             <Select
-              value={projectToSelectValue(project)}
-              onValueChange={(value) => setProject(selectValueToProject(value))}
+              value={retentionDaysToSelectValue(retentionDays)}
+              onValueChange={(value) => {
+                const days = selectValueToRetentionDays(value);
+                setRetentionDays(days);
+                writeRetentionDays(days);
+              }}
             >
               <SelectTrigger
-                id="archived-project-filter"
-                aria-label="Filter archived sessions by project"
-                data-testid="archived-project-filter"
-                className="w-56"
+                {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "retention")}
+                id="archived-retention"
+                data-testid="archived-retention"
+                className="w-40"
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent position="popper" align="start">
-                <SelectItem value={ALL_PROJECTS_VALUE}>All projects</SelectItem>
-                {items.map((name) => (
-                  <SelectItem
-                    key={name}
-                    value={projectToSelectValue(name)}
-                    data-testid={`archived-project-option-${name}`}
-                  >
-                    {name}
+              <SelectContent
+                {...settingsOverlayProps(ARCHIVED_SESSIONS_ENTRY, "retention")}
+                position="popper"
+                align="start"
+              >
+                {ARCHIVED_RETENTION_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-        )}
-        {!selectionMode && archived.length > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            data-testid="archived-toggle-selection"
-            onClick={() => setSelectionMode(true)}
-          >
-            Select
-          </Button>
-        )}
-      </div>
-
-      {selectionMode && (
-        <ArchivedBulkActionBar
-          selectedIds={selectedIds}
-          allArchived={archived}
-          onSelectAll={selectAll}
-          onDeselectAll={deselectAll}
-          onExit={exitSelectionMode}
-        />
-      )}
-
-      {ownedExpiredSessions.length > 0 && (
-        <div className="mb-4 flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
-          <ClockIcon className="size-4 shrink-0 text-destructive" />
-          <span className="text-ui flex-1">
-            {ownedExpiredSessions.length === 1
-              ? "1 expired session"
-              : `${ownedExpiredSessions.length} expired sessions`}{" "}
-            {listQuery.hasNextPage ? "on loaded pages " : ""}past the {retentionDays}-day retention
-            period.
-          </span>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            data-testid="delete-expired"
-            disabled={bulkDelete.isPending}
-            onClick={() => setDeleteExpiredOpen(true)}
-          >
-            Delete expired
-          </Button>
-          <Dialog open={deleteExpiredOpen} onOpenChange={setDeleteExpiredOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delete expired sessions?</DialogTitle>
-                <DialogDescription>
-                  {ownedExpiredSessions.length === 1
-                    ? "1 owned archived session"
-                    : `${ownedExpiredSessions.length} owned archived sessions`}{" "}
-                  older than {retentionDays} days {listQuery.hasNextPage ? "on loaded pages " : ""}
-                  will be permanently deleted. This cannot be undone.
-                  {listQuery.hasNextPage && (
-                    <span className="mt-2 block text-sm">
-                      Note: More archived sessions may exist on unfetched pages. Click "Load more"
-                      to see all expired sessions before deleting.
-                    </span>
-                  )}
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button
-                  variant="ghost"
-                  onClick={() => setDeleteExpiredOpen(false)}
-                  disabled={bulkDelete.isPending}
+          {items.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="archived-project-filter" className="text-ui text-muted-foreground">
+                Project
+              </label>
+              <Select
+                value={projectToSelectValue(project)}
+                onValueChange={(value) => setProject(selectValueToProject(value))}
+              >
+                <SelectTrigger
+                  {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "projectFilter")}
+                  id="archived-project-filter"
+                  data-testid="archived-project-filter"
+                  className="w-56"
                 >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={bulkDelete.isPending}
-                  onClick={() => {
-                    bulkDelete.mutate({ ids: ownedExpiredSessions.map((c) => c.id) });
-                    setDeleteExpiredOpen(false);
-                  }}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  {...settingsOverlayProps(ARCHIVED_SESSIONS_ENTRY, "projectFilter")}
+                  position="popper"
+                  align="start"
                 >
-                  Delete{" "}
-                  {ownedExpiredSessions.length === 1
-                    ? "1 session"
-                    : `${ownedExpiredSessions.length} sessions`}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      )}
-
-      {listQuery.isLoading ? (
-        <p className="text-ui text-muted-foreground">Loading…</p>
-      ) : archived.length === 0 && !listQuery.hasNextPage ? (
-        // Definitive empty only when there are no archived rows AND no further
-        // pages to fetch.
-        <p className="text-ui text-muted-foreground">
-          {project ? "No archived sessions in this project." : "No archived sessions."}
-        </p>
-      ) : (
-        <>
-          {archived.length > 0 && (
-            <div className="flex flex-col gap-4">
-              {groupedArchived.map((group) => (
-                <div key={group.label}>
-                  <h3 className="mb-1 px-3 text-sm font-medium text-muted-foreground">
-                    {group.label}
-                  </h3>
-                  <ul className="flex flex-col gap-0.5">
-                    {group.conversations.map((conv) => (
-                      <ArchivedRow
-                        key={conv.id}
-                        conversation={conv}
-                        cutoff={cutoff}
-                        selectionMode={selectionMode}
-                        isSelected={selectedIds.has(conv.id)}
-                        onToggleSelected={toggleSelected}
-                      />
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                  <SelectItem value={ALL_PROJECTS_VALUE}>All projects</SelectItem>
+                  {items.map((name) => (
+                    <SelectItem
+                      {...settingsRuntimeChoiceProps(ARCHIVED_SESSIONS_ENTRY, "projectFilter")}
+                      key={name}
+                      value={projectToSelectValue(name)}
+                      data-testid={`archived-project-option-${name}`}
+                    >
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
-          {archived.length === 0 && (
-            // The list fetches a mixed page (active + archived rows) and filters
-            // to archived client-side; archived sessions are older and can sort
-            // onto later pages, so a page with none isn't the end. Offer to page
-            // forward instead of dead-ending on the definitive empty state.
-            <p className="text-ui text-muted-foreground">
-              {project
-                ? "No archived sessions in this project on this page."
-                : "No archived sessions on this page."}
-            </p>
+          {!selectionMode && archived.length > 0 && (
+            <Button
+              {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "select")}
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="archived-toggle-selection"
+              onClick={() => setSelectionMode(true)}
+            >
+              Select
+            </Button>
           )}
-          {/* Keep the pager visible whenever more pages exist, independent of the
+        </div>
+
+        {selectionMode && (
+          <ArchivedBulkActionBar
+            selectedIds={selectedIds}
+            allArchived={archived}
+            onSelectAll={selectAll}
+            onDeselectAll={deselectAll}
+            onExit={exitSelectionMode}
+          />
+        )}
+
+        {ownedExpiredSessions.length > 0 && (
+          <div className="mb-4 flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+            <ClockIcon className="size-4 shrink-0 text-destructive" />
+            <span className="text-ui flex-1">
+              {ownedExpiredSessions.length === 1
+                ? "1 expired session"
+                : `${ownedExpiredSessions.length} expired sessions`}{" "}
+              {listQuery.hasNextPage ? "on loaded pages " : ""}past the {retentionDays}-day
+              retention period.
+            </span>
+            <Button
+              {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "deleteExpired")}
+              type="button"
+              variant="destructive"
+              size="sm"
+              data-testid="delete-expired"
+              disabled={bulkDelete.isPending}
+              onClick={() => setDeleteExpiredOpen(true)}
+            >
+              Delete expired
+            </Button>
+            <Dialog open={deleteExpiredOpen} onOpenChange={setDeleteExpiredOpen}>
+              <DialogContent {...settingsOverlayProps(ARCHIVED_SESSIONS_ENTRY, "deleteExpired")}>
+                <DialogHeader>
+                  <DialogTitle>Delete expired sessions?</DialogTitle>
+                  <DialogDescription>
+                    {ownedExpiredSessions.length === 1
+                      ? "1 owned archived session"
+                      : `${ownedExpiredSessions.length} owned archived sessions`}{" "}
+                    older than {retentionDays} days{" "}
+                    {listQuery.hasNextPage ? "on loaded pages " : ""}
+                    will be permanently deleted. This cannot be undone.
+                    {listQuery.hasNextPage && (
+                      <span className="mt-2 block text-sm">
+                        Note: More archived sessions may exist on unfetched pages. Click "Load more"
+                        to see all expired sessions before deleting.
+                      </span>
+                    )}
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    data-settings-dialog-action="Cancel"
+                    variant="ghost"
+                    onClick={() => setDeleteExpiredOpen(false)}
+                    disabled={bulkDelete.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "expiredConfirm", {
+                      runtime: String(ownedExpiredSessions.length),
+                      variant: ownedExpiredSessions.length === 1 ? "one" : undefined,
+                    })}
+                    variant="destructive"
+                    disabled={bulkDelete.isPending}
+                    onClick={() => {
+                      bulkDelete.mutate({ ids: ownedExpiredSessions.map((c) => c.id) });
+                      setDeleteExpiredOpen(false);
+                    }}
+                  >
+                    Delete{" "}
+                    {ownedExpiredSessions.length === 1
+                      ? "1 session"
+                      : `${ownedExpiredSessions.length} sessions`}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+
+        {listQuery.isLoading ? (
+          <p className="text-ui text-muted-foreground">Loading…</p>
+        ) : archived.length === 0 && !listQuery.hasNextPage ? (
+          // Definitive empty only when there are no archived rows AND no further
+          // pages to fetch.
+          <p className="text-ui text-muted-foreground">
+            {project ? "No archived sessions in this project." : "No archived sessions."}
+          </p>
+        ) : (
+          <>
+            {archived.length > 0 && (
+              <div className="flex flex-col gap-4">
+                {groupedArchived.map((group) => (
+                  <div key={group.label}>
+                    <h3 className="mb-1 px-3 text-sm font-medium text-muted-foreground">
+                      {group.label}
+                    </h3>
+                    <SettingsDataRegion entry={ARCHIVED_SESSIONS_ENTRY} region="sessions">
+                      <ul className="flex flex-col gap-0.5">
+                        {group.conversations.map((conv) => (
+                          <ArchivedRow
+                            key={conv.id}
+                            conversation={conv}
+                            cutoff={cutoff}
+                            selectionMode={selectionMode}
+                            isSelected={selectedIds.has(conv.id)}
+                            onToggleSelected={toggleSelected}
+                          />
+                        ))}
+                      </ul>
+                    </SettingsDataRegion>
+                  </div>
+                ))}
+              </div>
+            )}
+            {archived.length === 0 && (
+              // The list fetches a mixed page (active + archived rows) and filters
+              // to archived client-side; archived sessions are older and can sort
+              // onto later pages, so a page with none isn't the end. Offer to page
+              // forward instead of dead-ending on the definitive empty state.
+              <p className="text-ui text-muted-foreground">
+                {project
+                  ? "No archived sessions in this project on this page."
+                  : "No archived sessions on this page."}
+              </p>
+            )}
+            {/* Keep the pager visible whenever more pages exist, independent of the
               current page's archived count — otherwise a first page of only
               active rows would hide the archived rows on later pages. */}
-          {listQuery.hasNextPage && (
-            <div className="mt-3">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                data-testid="archived-load-more"
-                disabled={listQuery.isFetchingNextPage}
-                onClick={() => void listQuery.fetchNextPage()}
-              >
-                {listQuery.isFetchingNextPage ? "Loading…" : "Load more"}
-              </Button>
-            </div>
-          )}
-        </>
-      )}
-    </Section>
+            {listQuery.hasNextPage && (
+              <div className="mt-3">
+                <Button
+                  {...settingsControlProps(
+                    ARCHIVED_SESSIONS_ENTRY,
+                    "loadMore",
+                    listQuery.isFetchingNextPage ? { alternative: "loading" } : undefined,
+                  )}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  data-testid="archived-load-more"
+                  disabled={listQuery.isFetchingNextPage}
+                  onClick={() => void listQuery.fetchNextPage()}
+                >
+                  {listQuery.isFetchingNextPage ? "Loading…" : "Load more"}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </Section>
+    </SettingsItem>
   );
 }
 
@@ -3647,6 +3853,8 @@ function ArchivedBulkActionBar({
   const allSelected = count > 0 && count === allArchived.length;
   const isBusy = bulkArchive.isPending || bulkDelete.isPending;
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  // How many owned sessions an action applies to; with none, its name is the plain verb.
+  const ownedCount = ownedSelected.length > 0 ? String(ownedSelected.length) : "";
 
   function handleUnarchive() {
     if (ownedSelected.length === 0) return;
@@ -3671,6 +3879,11 @@ function ArchivedBulkActionBar({
             {count === 0 ? "None selected" : `${count} selected`}
           </span>
           <Button
+            {...settingsControlProps(
+              ARCHIVED_SESSIONS_ENTRY,
+              "selectAll",
+              allSelected ? { alternative: "deselect" } : undefined,
+            )}
             type="button"
             variant="ghost"
             size="sm"
@@ -3680,11 +3893,11 @@ function ArchivedBulkActionBar({
             {allSelected ? "Deselect all" : "Select all"}
           </Button>
           <Button
+            {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "exitSelection")}
             type="button"
             variant="secondary"
             size="icon-sm"
             className="-translate-y-1/2 absolute top-1/2 right-1 shrink-0 rounded-full"
-            aria-label="Exit selection mode"
             data-testid="archived-exit-selection"
             onClick={onExit}
           >
@@ -3694,6 +3907,9 @@ function ArchivedBulkActionBar({
 
         <div className="flex items-center gap-1.5">
           <Button
+            {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "bulkUnarchive", {
+              runtime: ownedCount,
+            })}
             type="button"
             variant="outline"
             size="sm"
@@ -3710,6 +3926,9 @@ function ArchivedBulkActionBar({
             Unarchive {ownedSelected.length > 0 ? ownedSelected.length : ""}
           </Button>
           <Button
+            {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "bulkDelete", {
+              runtime: ownedCount,
+            })}
             type="button"
             variant="outline"
             size="sm"
@@ -3735,7 +3954,7 @@ function ArchivedBulkActionBar({
       </div>
 
       <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
-        <DialogContent>
+        <DialogContent {...settingsOverlayProps(ARCHIVED_SESSIONS_ENTRY, "bulkDelete")}>
           <DialogHeader>
             <DialogTitle>Delete {ownedSelected.length} session(s)?</DialogTitle>
             <DialogDescription>
@@ -3745,6 +3964,7 @@ function ArchivedBulkActionBar({
           </DialogHeader>
           <DialogFooter>
             <Button
+              data-settings-dialog-action="Cancel"
               type="button"
               variant="ghost"
               onClick={() => setConfirmDeleteOpen(false)}
@@ -3753,6 +3973,9 @@ function ArchivedBulkActionBar({
               Cancel
             </Button>
             <Button
+              {...settingsControlProps(ARCHIVED_SESSIONS_ENTRY, "bulkConfirm", {
+                runtime: String(ownedSelected.length),
+              })}
               type="button"
               variant="destructive"
               onClick={handleDelete}
@@ -3832,6 +4055,7 @@ function ArchivedRow({
       {!selectionMode && (
         <div className="flex shrink-0 items-center gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
           <Button
+            data-settings-row-action="delete"
             type="button"
             variant="ghost"
             size="icon-sm"
@@ -3843,6 +4067,7 @@ function ArchivedRow({
             <Trash2Icon className="size-4 text-destructive" />
           </Button>
           <Button
+            data-settings-row-action="unarchive"
             type="button"
             variant="ghost"
             size="sm"
@@ -3866,7 +4091,7 @@ function ArchivedRow({
       )}
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
+        <DialogContent {...settingsRowOverlayProps(ARCHIVED_SESSIONS_ENTRY, "sessions", "delete")}>
           <DialogHeader>
             <DialogTitle>Delete session?</DialogTitle>
             <DialogDescription>
@@ -3875,10 +4100,16 @@ function ArchivedRow({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleteOpen(false)} disabled={del.isPending}>
+            <Button
+              data-settings-row-action="cancel"
+              variant="ghost"
+              onClick={() => setDeleteOpen(false)}
+              disabled={del.isPending}
+            >
               Cancel
             </Button>
             <Button
+              data-settings-row-action="delete"
               variant="destructive"
               disabled={del.isPending}
               onClick={() => {

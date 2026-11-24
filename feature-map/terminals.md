@@ -54,7 +54,7 @@ with their own terminal retain the switcher.
   off while a rail-opened shell owns the main view.
 - On a phone, use the view mode choice in the header menu.
 - Choose Resume when the terminal shows as stopped.
-- On desktop with `grid_sessions_display_ui` enabled, use each grid cell's header switch.
+- On desktop with `grid_sessions_display_ui` on (the default), use each grid cell's header switch.
   The shortcut targets the active cell; shells remain in the shared Workspace.
 - On desktop with `splittable_terminal_view_ui` enabled, use the header's "Split
   right" / "Split down" buttons in Terminal view and pick a shell type. Drag a
@@ -82,7 +82,8 @@ with their own terminal retain the switcher.
   terminal stays open. Cmd/Ctrl+Shift+W closes the window.
 
 **After the session moves:** open the host badge, choose "Switch host…", pick
-another host, then look at both the terminal strip and the agent terminal.
+another host or a new sandbox, then look at both the terminal strip and the
+agent terminal.
 Sandbox-backed sessions, including Databricks Sandbox and Arclet, cannot switch
 hosts. Their "Switch host…" item is disabled; hover or focus it for the
 unsupported explanation.

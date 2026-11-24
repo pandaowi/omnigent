@@ -15,21 +15,25 @@ the header menu), and each place is a separate entry point.
   managed hosts, preselected. Siblings have one
   indentation level with curved connectors and are absent from the Agents panel.
   Archive/delete promotes the oldest active member; compute survives while any
-  session remains bound. The representative pins/moves the family; individual
-  pins appear only in Pinned and return to their nest when unpinned. Existing
+  session remains bound. The representative pins/moves the entire family; nested members have no pin
+  action, and legacy individual pins keep their place inside the nest.
+  Opening Add nested agent shows a draft row in the family until creation
+  replaces it; leaving the composer without submitting removes the draft. Existing
   sessions cannot join a family; ordinary forks remain standalone and may reuse the source host.
 
-- `session-grid`: behind `grid_sessions_display_ui`, drag sidebar sessions into a
+- `session-grid`: with `grid_sessions_display_ui` (on by default), drag sidebar sessions into a
   conversation to split left/right or top/bottom with a hover preview. Up to four
   independent chats fit in two rows and two columns. Grids live at `/grid/<id>`
   and are saved only in this browser, scoped to server and user.
-- `pin`: pinned sessions move to their own section and back.
+- `pin`: standalone sessions and family representatives move to Pinned and back;
+  pinning a representative moves its whole family.
 - `pin-undo`: unpinning shows an Undo toast that re-pins the session into its
   old Pinned slot. Dragging a pinned row into a folder unpins it without one.
 - `pin-reorder`: drag a pinned row onto another pinned row to change the Pinned
   order, which persists across reloads; dropping an unpinned row onto a pinned
   row pins it above or below that row, by the half it's released over, and
-  releasing it just below the last pin pins it at the bottom.
+  releasing it just below the last pin pins it at the bottom. Only standalone
+  sessions and family representatives can be pinned or reordered this way.
 - `custom-order`: with `sidebar_grouping_ui` (on by default), drop one of your sessions onto
   another row of the same list, project or group (or use Move up/down) to switch
   Ordering to Custom. Positions are saved on this device and new sessions appear
@@ -45,7 +49,9 @@ the header menu), and each place is a separate entry point.
   Sessions whose title matches list under **Sessions**, then sessions matching
   only in chat content under **In messages** with a snippet; each group has its
   own Show more. Archived sessions match too, marked **Archived**; the recent
-  sessions shown before typing leave them out.
+  sessions shown before typing leave them out. Results show project and parent
+  session breadcrumbs when available, including when the parent did not match
+  the search. Desktop and mobile search use the same context.
 - `archive`: archived sessions leave the main list and appear in the archived
   view, which can be filtered by project and paged. On a server with worktree
   cleanup, archiving a session that has a git worktree first asks whether to
@@ -53,10 +59,16 @@ the header menu), and each place is a separate entry point.
   answer, which Settings → Git can change later. Archiving a session whose agent
   is still working, waiting on an approval, or running background work first
   asks to confirm, since archiving stops it; Cancel or Escape keeps the session.
+  When the session's sandbox provider has `stop_on_archive` on (or its launcher
+  decides so), archiving also stops the managed sandbox when no other session
+  uses it (another session on the host, or a side chat or sub-agent of the
+  session, keeps it running); the next message after an unarchive resumes it,
+  unless the managed sandbox reaper has terminated it by then.
 - `row-quick-actions`: sidebar rows show hover Pin and Archive buttons beside the
   "…" menu. Settings → Appearance → Sidebar → Show Pin and Archive buttons on
   session rows (on by default) turns them off, leaving both actions in the row
-  menu and right-click menu.
+  menu and right-click menu. Pin controls, including the session header menu,
+  are available only for standalone sessions and family representatives.
 - `stop`: Stop session on a hosted parent ends its runner, including side chats
   and sub-agents sharing that runner. Conversation histories are kept.
 - `side-chat-lifecycle`: generic side chats reuse their parent's live runner;
@@ -96,6 +108,14 @@ the header menu), and each place is a separate entry point.
   project folder from the row menu, the header menu, or the header's folder tag.
   Agents file sessions the same way with `sys_session_update` (see
   [session orchestration](session-orchestration.md)).
+- `project-create-run-on`: New project's **Run on** picks a connected host or a
+  sandbox provider (behind the `project_repository_creation` release feature, on by
+  default; append `-project_repository_creation` to keep the folder-only dialog).
+  On a host, **Folder** keeps the optional working directory; **Repository** clones
+  a URL and optional branch into **Clone into** (default `~/<repo>`) before the
+  project is saved, and the dialog stays locked until the clone and save finish.
+  On a sandbox, only the repository is offered and it is saved, not cloned, until a
+  session starts. Older servers keep the folder-only dialog.
 - `project-rename`: the project menu opens a dialog with the name selected;
   typing replaces it without losing characters as the menu closes.
   Agents rename projects and set their emoji with `sys_project_update`, and
@@ -138,6 +158,15 @@ the header menu), and each place is a separate entry point.
 - `unsupported-sandbox-actions`: Databricks Sandbox and Arclet host-switch
   controls stay visible but disabled, with hover and keyboard explanations.
   Their forms cannot submit. Fork is not restricted for these sessions.
+- `switch-host-sandbox`: on a server that offers managed sandboxes, Switch host
+  on a session running on a connected machine also lists a new sandbox per
+  provider. Picking one asks for an optional repository and branch, then moves
+  the session there with the same launch progress a new sandbox session shows.
+  A refused launch keeps the dialog open, with the old host offered again. The
+  reconnect dialog's Switch host opens the same picker, so a session whose
+  machine is offline can recover onto a new sandbox too. Only providers whose
+  `/v1/info` capabilities report `accepts_session_move` are offered (not those
+  that manage sandbox profiles), and none once the session has no host.
 
 - `clone`: copy a session into a new workspace, including a typed `~` path.
   Participating sandbox providers require a [profile selection](sandbox-profiles.md)
@@ -235,6 +264,21 @@ the header menu), and each place is a separate entry point.
   a third of its width, or after a quick flick, closes it; a shorter drag springs
   back. List scrolling, row taps, long-press reordering and horizontal scrollers
   keep their own touch handling.
+- `session-overview`: behind the `session_overview` release flag (off by
+  default), the desktop chat header shows the session cost as a `$x.xx` chip
+  beside the right-panel toggle, styled as selected while the card shows.
+  Clicking it shows or hides a **Session overview** card
+  with the session cost, each model's cost and the total tokens, which then
+  leave the desktop Agent info popover. Windows at least 1280px wide with the
+  workspace collapsed and chat in view dock the card open beneath the chip;
+  closed there by hand, it stays closed on that device, including after a
+  reload, until the chip opens it again. Other layouts open it as a popover
+  from the chip. Mobile keeps cost in Agent
+  info.
+  When the session has sub-agents, a **Sub-agents** list names each direct one
+  with its cost, including its own sub-agents; an unpriced one shows no cost.
+  A Claude sub-agent shows its Claude session's transcript estimate as `~$x.xx`. The
+  Agents list and graph show the same costs beside each agent.
 
 ## How to get to it (user POV)
 
@@ -245,12 +289,13 @@ the header menu), and each place is a separate entry point.
   Server admins configure the available targets under Settings → Admin → General →
   **Nested agent destinations**.
 
-**Session grids (desktop only):** enable `OMNIGENT_FEATURES=grid_sessions_display_ui`, open a
+**Session grids (desktop only):** with `grid_sessions_display_ui` on (the default), open a
 session, and drag another sidebar row over it. Hover **Split left/right/top/bottom**
 to preview, then drop. Split a remaining full-width or full-height pane again
 to reach three or four panes. Alternatively, use a row's menu or right-click
 menu → **Open in grid** and choose the pane and direction. Each pane has its own
-transcript and composer; terminal-capable sessions have a Chat/Terminal switch in
+transcript and composer, whose action row shows the session's host, permission mode and
+harness; terminal-capable sessions have a Chat/Terminal switch in
 each cell header. The shortcut ⌘/Ctrl+Alt+\ switches
 only the active cell. Choices survive reloads and follow the session into full
 screen; drafts and terminal connections survive view changes. A managed session
@@ -274,7 +319,8 @@ its Rename menu action to edit it inline.
 Enter or blur saves; Escape cancels. Grid names persist locally. Click anywhere
 in a cell (or focus its controls) to activate it: its outline and inverted header
 identify the session shown in Workspace. ⌘/Ctrl+Alt+Shift+] / [ activate the
-next / previous cell and focus its terminal or composer. The grid header button
+next / previous cell and focus its terminal or composer. The grid header and window
+title show the grid's name or its sessions' titles. The grid header button
 (⌘/Ctrl+Alt+] in a browser tab, ⇧⌘B / Ctrl+Shift+B in the desktop app) toggles the shared panel, and ⌃1–9 (Alt+1–9 on Windows/Linux) shows the active cell's Nth fixed tab; it spans the full app height beside the grid header and cells. Its width
 is saved per grid and stays fixed when switching sessions; the header shrinks
 with the cells when the panel opens.
@@ -327,12 +373,16 @@ that deleting stops them, then asks again with Delete anyway.
 then click Show more under its rows. Opening one of its older sessions from
 the ⌘K / Ctrl+K palette or a link also lists down to that session, once the
 sidebar has loaded it. To change the count or list every session instead,
-use Settings → Appearance → Sidebar.
+use Settings → Appearance → Sidebar. Opening a session never opens its folder:
+a collapsed folder holding the open, unpinned session lists just that row under
+its header until you open another session. Moving a session into a project
+still opens that folder.
 
 **Pinned section drag:** drag a pinned row onto another pinned row to reorder
 the Pinned section, or drop an unpinned row onto a pinned row to pin it into
 that slot: the line marks whether it lands above or below the row. Release it
-just below the last pin to pin it at the bottom.
+just below the last pin to pin it at the bottom. Only standalone sessions and
+family representatives can be dragged to pin or reorder a pin.
 
 **Custom order:** with `sidebar_grouping_ui` on (the default), drag one of your sessions onto
 another row in the same list, project or group and release it; a line like the
@@ -346,7 +396,7 @@ automations run from names those automations and deletes them first.
 
 **Session header menu:** open a session and use the menu next to its title for
 pin, fork, export, rename, mark as unread, create automation, add to project,
-archive or unarchive, and delete. Clicking the title also renames, and the title's folder
+archive or unarchive, and delete. Pin is hidden on nested members. Clicking the title also renames, and the title's folder
 tag also moves the session into a project. Sub-agent sessions hide owner-only
 actions. On phones, the sidebar toggle has a circular glass surface; host,
 harness/model, background tasks, and session actions share the top-right glass
@@ -407,7 +457,8 @@ Cancel and Archive; Archive continues to the worktree prompt when that applies.
 **Row quick actions setting:** Settings → Appearance → Sidebar → Show Pin and
 Archive buttons on session rows. Turning it off removes the hover buttons from
 every sidebar row; the session header never had them. On desktop the row menu's
-Pin item is shown only while the setting is off (mobile always shows it).
+Pin item is shown only while the setting is off (mobile always shows it), and
+only for standalone sessions and family representatives.
 
 **Archived view:** choose Display → Archived sessions in the sidebar filter
 menu, then filter by project.
@@ -456,8 +507,10 @@ tooltip gives the state's age once that's over five minutes old. Sessions the se
 hasn't imported yet fill in as it imports them.
 On mobile, the top-left hamburger opens the sidebar from the board or a selected
 session. Back to canvas returns to the selected project. A Canvas session link
-opens the same layout directly. If a session is replaced, for example after `/clear`,
-its replacement stays beside the same board.
+opens the same layout directly. If a session is replaced, for example after `/clear` or `/rewind`,
+its replacement opens beside the same board, keeping the board's query and
+replacing the old session in history. After `/rewind` its composer holds the
+chosen prompt and attachments, as outside Canvas.
 The plus button starts a new session in the selected canvas. After sending,
 the new session opens beside that board; on narrow screens, Back to canvas
 returns to it. Reloading a temporary session before creation finishes returns to
@@ -573,6 +626,14 @@ it selects Reconnect and explains the restriction.
 An open switch dialog closes when switching becomes unavailable and stays closed
 if support returns; choose Switch host again to reopen it.
 
+**Move to a new sandbox:** on a session running on one of your machines, open the
+composer's host menu and choose **Switch host…**. With managed sandboxes
+configured, the host picker lists a new sandbox per provider above your
+machines, and preselects one when no other machine is online. Enter an optional
+repository URL and branch and choose **Switch host**; the session shows the
+sandbox's launch progress and continues there. A message sent while it
+provisions waits for the sandbox.
+
 **Stop session:** open the parent's sidebar row menu or right-click the row and
 choose Stop session while a side chat or sub-agent is working. On mobile, open
 the sidebar drawer and long-press the row. The current-turn interrupt control is
@@ -603,15 +664,17 @@ With Settings → General → **Open sub-agents in the Workspace panel** on, a
 plain click on a sub-agent (transcript link, composer indicator, Agents row or
 graph node) opens it as a tab in the same strip, marked with a bot icon, and
 reveals the panel; ancestors still open full screen. The tab's **Open full
-screen** link opens the sub-agent's own page. Claude Code and closed sub-agents
-are read-only there too. Closing a sub-agent tab only hides it; the sub-agent
-keeps running. Covered by `tests/e2e_ui/agents/test_subagent_side_panel.py`.
+screen** link opens the sub-agent's own page. Claude Code sub-agents and closed
+sub-agents other than Codex side chats are read-only there too. Closing a
+sub-agent tab only hides it; the sub-agent keeps running. Covered by
+`tests/e2e_ui/agents/test_subagent_side_panel.py`.
 While a side chat works, typing a follow-up turns Interrupt into Send, which
 queues or steers it as the main composer does; Escape still interrupts. Its queue
 strip offers edit, steer, reorder and delete, and Mod+Enter steers them all.
 Closing the side chat discards the follow-ups queued on that device. Other
 devices keep their tabs and queued work. Closing still stops the chat's running
-turn, as before; a sealed Codex side chat refuses further input. A chat-only
+turn, as before. A closed Codex side chat resumes on its next message or Resume,
+restoring its saved context if its native thread is gone. A chat-only
 side chat can also send messages from its direct URL without choosing a
 workspace. The side-chat composer opens the same `/` menu
 affordance as the main composer but with a narrower set — `/help` and the
@@ -690,8 +753,8 @@ plain `uv run pytest`, which starts a private server for the test.
   ordinary session routes retain native link dragging and expose no grid menus,
   drop targets, or saved-grid sidebar entries. Run with `--browser-ui-skip-build --video=on` after building.
   Layout combinations and malformed local storage have unit coverage in
-  `web/src/grid/gridLayout.test.ts`. For a real-server drive, enable
-  `grid_sessions_display_ui` on the isolated server. Also check a collapsed sidebar manually.
+  `web/src/grid/gridLayout.test.ts`. For a real-server drive, the
+  isolated server enables `grid_sessions_display_ui` by default. Also check a collapsed sidebar manually.
   Per-view render recovery, preserved neighboring drafts, usable cell controls
   and independent chat/terminal retry have component coverage in
   `web/src/grid/GridSessionPane.test.tsx`. To check manually, inject a render
@@ -919,6 +982,25 @@ plain `uv run pytest`, which starts a private server for the test.
   Supported host-switch UI coverage:
   `tests/e2e_ui/sessions/test_host_badge.py::test_host_badge_switches_the_session_to_another_host`
   checks the release/launch requests with stubbed host APIs.
+- **`switch-host-sandbox` (server integration, plain `uv run pytest`):**
+  `tests/server/integration/test_host_session_binding.py::test_session_moves_from_its_host_onto_a_new_managed_sandbox`
+  moves a session from a connected host onto a fake-launched sandbox host that
+  registers over the real tunnel;
+  `test_message_sent_while_a_moved_session_provisions_waits_for_the_sandbox`,
+  `test_concurrent_sandbox_moves_launch_one_sandbox`,
+  `test_runner_bound_during_a_sandbox_move_keeps_the_session`,
+  `test_refused_sandbox_move_restores_the_session_binding`,
+  `test_sandbox_move_failing_partway_restores_the_session_binding`, and
+  `test_sandbox_move_refuses_without_touching_the_session` in the same file cover
+  the held message, racing moves and runner binds, refused or interrupted moves,
+  and the guards;
+  `tests/server/integration/test_sessions_permissions.py::test_move_to_managed_sandbox_requires_owner_access`
+  covers the owner-only gate. The dialog's sandbox rows (hidden on servers without
+  `move_to_managed_sandbox`), repository validation, and refused-launch
+  recovery have component coverage in `web/src/shell/SwitchHostDialog.test.tsx`;
+  routing the move by the new sandbox's host id is covered in
+  `web/src/lib/identity.test.ts`. No browser test drives the dialog into a live
+  sandbox launch.
 - **`reconnect`, spinner (own environment):**
   `tests/e2e_ui/chat/test_reconnecting_spinner.py::test_reconnecting_state_shows_spinner`
   seeds an error item directly into the spawned server's database.
@@ -1266,7 +1348,7 @@ model. It covers desktop kebab/right-click/header and mobile long-press/header
 composer navigation, shared/fresh compute, pin/project/fork actions, archive/undo,
 and survivor messaging after representative deletion. It also checks that expanded
 family rows hide actions when not hovered, deletion keeps peers nested before the
-server responds, and personal pins appear only once. Set `OMNIGENT_DEMO_DIR`
+server responds, and only the representative offers family-wide pin actions. Set `OMNIGENT_DEMO_DIR`
 outside the checkout to retain recordings.
 The component tests in `web/src/shell/HeaderConversationMenu.test.tsx` and
 `web/src/components/KeyboardShortcutsDialog.test.tsx` cover Cmd/Ctrl+Alt+A and

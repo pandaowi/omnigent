@@ -68,11 +68,13 @@ import {
 import { getCurrentIsAdmin, getCurrentIsSupervisor, resolveIdentity } from "@/lib/identity";
 import { useServerInfo } from "@/lib/CapabilitiesContext";
 import { isSingleUserMode } from "@/lib/capabilities";
+import { isBootFallbackInfo } from "@/lib/bootCapabilities";
 import { withBasePath } from "@/lib/basePath";
 import { relativeTime, absoluteTime } from "@/lib/relativeTime";
 
 export function MembersPage() {
   const info = useServerInfo();
+  const capabilitiesLoading = info === "loading" || isBootFallbackInfo(info);
   const isSingleUser = isSingleUserMode(info);
   const manageable = info !== "loading" && info.accounts_enabled;
 
@@ -157,7 +159,7 @@ export function MembersPage() {
 
   // Initial load: identity probe + members list
   useEffect(() => {
-    if (isSingleUser) return;
+    if (isSingleUser || capabilitiesLoading) return;
     let unmounted = false;
     void (async () => {
       const userId = await resolveIdentity();
@@ -179,7 +181,7 @@ export function MembersPage() {
     return () => {
       unmounted = true;
     };
-  }, [isSingleUser, refreshUsers]);
+  }, [isSingleUser, capabilitiesLoading, refreshUsers]);
 
   // Filtered users calculation
   const filteredUsers = useMemo(() => {
@@ -1724,6 +1726,7 @@ export function MembersPage() {
               Cancel
             </Button>
             <Button
+              data-settings-row-action="remove"
               variant="destructive"
               onClick={handleConfirmDelete}
               disabled={pendingAction}

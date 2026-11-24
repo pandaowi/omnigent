@@ -38,7 +38,12 @@ from starlette.responses import JSONResponse, RedirectResponse, Response
 from omnigent.db.account_authority import bind_account_authority, target_account_scope
 from omnigent.server.accounts_store import SqlAlchemyAccountStore
 from omnigent.server.admin_list import AdminList, promote_if_listed
-from omnigent.server.auth import _RESERVED_USERS, RESERVED_USER_LOCAL, UnifiedAuthProvider
+from omnigent.server.auth import (
+    _RESERVED_USERS,
+    RESERVED_USER_LOCAL,
+    UnifiedAuthProvider,
+    effective_admin,
+)
 from omnigent.server.oidc import mint_session_cookie
 from omnigent.server.passwords import (
     InvalidPasswordError,
@@ -440,7 +445,7 @@ def create_accounts_auth_router(
         if caller_id is None:
             return JSONResponse(status_code=401, content={"error": "not authenticated"})
 
-        is_admin = account_store.is_admin(caller_id)
+        is_admin = effective_admin(account_store.is_admin(caller_id))
         from omnigent.server.organization_store import get_organization_store
         org_store = get_organization_store()
         is_spv = org_store.is_user_supervisor(caller_id)
@@ -781,7 +786,7 @@ def create_accounts_auth_router(
         if caller_id is None:
             return JSONResponse(status_code=401, content={"error": "not authenticated"})
 
-        is_admin = account_store.is_admin(caller_id)
+        is_admin = effective_admin(account_store.is_admin(caller_id))
         from omnigent.server.organization_store import get_organization_store
         org_store = get_organization_store()
         is_spv = org_store.is_user_supervisor(caller_id)
@@ -881,7 +886,7 @@ def create_accounts_auth_router(
         if caller_id is None:
             return JSONResponse(status_code=401, content={"error": "not authenticated"})
 
-        is_admin = account_store.is_admin(caller_id)
+        is_admin = effective_admin(account_store.is_admin(caller_id))
         from omnigent.server.organization_store import get_organization_store
         org_store = get_organization_store()
         is_spv = org_store.is_user_supervisor(caller_id)
@@ -915,7 +920,7 @@ def create_accounts_auth_router(
         _logger.info(
             "auth/users/reset: %s reset by %s",
             _redact_for_log(user_id),
-            _redact_for_log(admin_id),
+            _redact_for_log(caller_id),
         )
         resp = JSONResponse(
             status_code=200,

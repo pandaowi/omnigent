@@ -36,6 +36,17 @@ import {
   useDeleteCustomAgent,
   type ManagedAgent,
 } from "@/hooks/useCustomAgents";
+import {
+  CUSTOM_AGENT_CREATE_ENTRY,
+  CUSTOM_AGENT_DETAIL_ENTRY,
+  CUSTOM_AGENTS_LIST_ENTRY,
+} from "@/pages/settings/search/catalog/customAgents";
+import { SettingsItem } from "@/pages/settings/search/SettingsItem";
+import { settingsControlProps } from "@/pages/settings/search/settingsControl";
+import {
+  SettingsDataRegion,
+  settingsOverlayProps,
+} from "@/pages/settings/search/settingsOwnership";
 import { BackButton } from "./HarnessCatalog";
 import { ApiError } from "@/lib/sessionsApi";
 import { cn } from "@/lib/utils";
@@ -122,24 +133,27 @@ export function SettingsCustomAgentsSection() {
   );
   if (agentId === "new") {
     return (
-      <div className="@container">
+      <SettingsItem entry={CUSTOM_AGENT_CREATE_ENTRY} className="@container">
         {back}
-        <h1 className="mb-6 text-2xl font-semibold">Create custom agent</h1>
+        <h1 className="settings-page-title mb-6 text-2xl font-medium">
+          {CUSTOM_AGENT_CREATE_ENTRY.label}
+        </h1>
         <CreateAgentForm
-          submitLabel="Save agent"
-          notice="Saving an existing installed agent's name replaces its entire configuration. Sessions using that agent will receive the update. Use a new name to keep both agents."
+          settingsEntry={CUSTOM_AGENT_CREATE_ENTRY}
+          submitLabel={CUSTOM_AGENT_CREATE_ENTRY.parts.submit}
+          notice="Reusing an installed agent's name replaces its configuration and updates its sessions. Use a new name to keep both agents."
           onCancel={() => navigate(BASE)}
           onCreate={async (input) => {
             const agent = await save.mutateAsync(input);
             navigate(agentPath(agent.id));
           }}
         />
-      </div>
+      </SettingsItem>
     );
   }
   if (detailId) {
     return (
-      <div className="@container">
+      <SettingsItem entry={CUSTOM_AGENT_DETAIL_ENTRY} className="@container">
         {!detail.data && back}
         {detail.isError && detail.data && (
           <p role="alert" className="mb-4 text-ui">
@@ -179,14 +193,14 @@ export function SettingsCustomAgentsSection() {
             </p>
           </>
         )}
-      </div>
+      </SettingsItem>
     );
   }
   return (
-    <div className="@container">
+    <SettingsItem entry={CUSTOM_AGENTS_LIST_ENTRY} className="@container">
       <div className="flex items-center justify-between pb-6">
         <div>
-          <h1 className="text-2xl font-semibold">Agents &amp; Teams</h1>
+          <h1 className="settings-page-title text-2xl font-medium">Agents &amp; Teams</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage single AI agents and multi-role orchestrated agent teams.
           </p>
@@ -197,6 +211,7 @@ export function SettingsCustomAgentsSection() {
         <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border px-2.5">
           <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <input
+            {...settingsControlProps(CUSTOM_AGENTS_LIST_ENTRY, "search")}
             type="search"
             aria-label="Search agents"
             placeholder="Search agents or teams…"
@@ -206,7 +221,11 @@ export function SettingsCustomAgentsSection() {
           />
         </div>
         <Button asChild size="sm" variant="outline">
-          <Link to={`${BASE}/new`} componentId="settings.custom_agents.create">
+          <Link
+            {...settingsControlProps(CUSTOM_AGENTS_LIST_ENTRY, "create")}
+            to={`${BASE}/new`}
+            componentId="settings.custom_agents.create"
+          >
             <PlusIcon className="size-4" />
             Create Agent
           </Link>
@@ -521,7 +540,7 @@ export function SettingsCustomAgentsSection() {
           </section>
         </>
       )}
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -560,6 +579,10 @@ function ListStatus({
       ) : null}
       {query.hasNextPage && (
         <Button
+          {...settingsControlProps(
+            CUSTOM_AGENTS_LIST_ENTRY,
+            scope === "user" ? "loadMoreYours" : "loadMoreServer",
+          )}
           className="mt-4"
           variant="outline"
           loading={query.isFetchingNextPage}
@@ -843,7 +866,10 @@ function AgentDetail({
           if (!remove.isPending) setConfirm(open);
         }}
       >
-        <DialogContent>
+        <DialogContent
+          showCloseButton={!remove.isPending}
+          {...settingsOverlayProps(CUSTOM_AGENT_DETAIL_ENTRY, "delete")}
+        >
           <DialogHeader>
             <DialogTitle>Delete {agent.name}</DialogTitle>
             <DialogDescription>
@@ -866,13 +892,19 @@ function AgentDetail({
           )}
           <DialogFooter>
             <Button
-              variant="outline"
+              data-settings-dialog-action="Cancel"
+              variant="ghost"
               disabled={remove.isPending}
               onClick={() => setConfirm(false)}
             >
               Cancel
             </Button>
             <Button
+              {...settingsControlProps(
+                CUSTOM_AGENT_DETAIL_ENTRY,
+                "confirmDelete",
+                inUse === null ? undefined : { alternative: "inUse" },
+              )}
               variant="destructive"
               loading={remove.isPending}
               onClick={() => void onRemove()}
