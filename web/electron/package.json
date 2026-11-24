@@ -1,7 +1,7 @@
 {
   "name": "omnigent-desktop-electron",
   "productName": "IPLabs",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "IPLabs desktop shell (Electron edition) — a thin native wrapper around the server-served web UI.",
   "private": true,
   "main": "src/main.js",
