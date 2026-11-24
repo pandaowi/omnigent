@@ -199,7 +199,7 @@ export function CreateAgentWizard({ onCancel, onCreate, onOpenAgent }: CreateAge
   const selectedHarnessLabel = brainLabels[selectedHarness] ?? selectedHarness;
 
   return (
-    <div className="flex flex-col min-h-[540px] rounded-xl border border-border bg-card overflow-hidden">
+    <div className="flex flex-col min-h-[calc(100vh-7rem)] rounded-xl border border-border bg-card overflow-hidden">
       {/* Top Stepper Header */}
       <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-3.5 bg-card">
         <div className="flex items-center gap-4 min-w-0 overflow-x-auto">

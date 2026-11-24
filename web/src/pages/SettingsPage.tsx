@@ -455,8 +455,8 @@ export function SettingsPage() {
 
   return (
     <PageScroll
-      maxWidthClassName="max-w-4xl"
-      contentClassName="px-4 md:px-8"
+      maxWidthClassName={section === "custom-agents" ? "max-w-none" : "max-w-4xl"}
+      contentClassName={section === "custom-agents" ? "px-4 md:px-6" : "px-4 md:px-8"}
       extraBottom="2.5rem"
       // Reserve the scrollbar's width so the centered column doesn't shift when
       // switching between a page or tab that scrolls and one that doesn't.
