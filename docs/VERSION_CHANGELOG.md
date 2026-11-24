@@ -1,6 +1,6 @@
 # Dokumentasi Perubahan Versi & Changelog: Origin vs. IPLabs
 
-Dokumen ini menyajikan perbandingan komprehensif antara **versi resmi upstream (Omnigent Origin)** dan **versi kustom platform kita (IPLabs Agent Platform)**, mulai dari rilis basis `v0.21.0` hingga upgrade terbaru `v0.22.0`.
+Dokumen ini menyajikan perbandingan komprehensif antara **versi resmi upstream (Omnigent Origin)** dan **versi kustom platform kita (IPLabs Agent Platform)**, mulai dari rilis basis `v0.21.0` hingga upgrade terbaru **`v0.23.0-iplabs.1`**.
 
 ---
 
@@ -8,20 +8,54 @@ Dokumen ini menyajikan perbandingan komprehensif antara **versi resmi upstream (
 
 | Parameter | Upstream Lama | Upstream Baru (Origin) | Versi Kustom Kita (IPLabs) |
 |---|---|---|---|
-| **Tag Versi** | `v0.21.0` | `v0.22.0` | **`v0.22.0-iplabs.1`** |
-| **Tanggal Rilis** | 05 November 2026 | 12 November 2026 | **14 November 2026** |
-| **Git Branch** | `upstream/main` | `upstream/release/v0.22.0` | `upgrade/v0.22.0-with-custom-features` |
+| **Tag Versi** | `v0.22.0` | `v0.23.0` | **`v0.23.0-iplabs.1`** |
+| **Tanggal Rilis** | 12 November 2026 | 18 November 2026 | **24 November 2026** |
+| **Git Branch** | `upstream/release/v0.22.0` | `v0.23.0` | `upgrade/v0.23.0-with-custom-features` |
 | **Branding Identitas** | Omnigent | Omnigent | **IPLabs Agent Platform** (Imani Prima) |
 | **Ekosistem Runner** | Local/Generic Sandboxes | Local/Generic Sandboxes | **Coder Workspaces Multi-Runner** (`frappe-dev`, `demo2`, dll.) |
-| **Akses & Keamanan** | Admin / Non-Admin biasa | Admin / Non-Admin biasa | **3-Tier Enterprise RBAC** (Global Admin, Supervisor, Member) |
+| **Akses & Keamanan** | Admin / Non-Admin biasa | Admin / Non-Admin biasa + Admin View Toggle | **3-Tier Enterprise RBAC** (Global Admin, Supervisor, Member) |
 | **Isolasi Folder** | Shared Home Workspace | Shared Home Workspace | **Strict Path Jailing** (`~/workspaces/{divisi}/{username}`) |
-| **Custom Agents** | List kustom standar | List kustom standar | **Multica-Style** (Live Runner Probe, Native Harness Codex/OpenCode/AGY) |
-| **Kolaborasi Agen** | Eksekusi single agent | Single agent + basic nested | **Agent Teams Visual Builder** & Preset Kolaboratif |
-| **Status Verifikasi** | Upstream CI | Upstream CI | **TypeScript: 0 Error \| Pytest: 100% \| Web Build: OK** |
+| **Custom Agents** | List kustom standar | Unified Settings Catalog | **Multica-Style** (Live Runner Probe, Native Harness Codex/OpenCode/AGY) |
+| **Kolaborasi Agen** | Nested Sessions | Nested + Permission Control | **Agent Teams Visual Builder** & Preset Kolaboratif |
+| **Status Verifikasi** | Upstream CI | Upstream CI | **TypeScript: 0 Error \| Pytest: 4/4 Passed (100%) \| Web Build: OK** |
 
 ---
 
-## 🚀 2. Pembaruan Upstream Origin (`v0.21.0` ➔ `v0.22.0`)
+## 🚀 2. Pembaruan Upstream Origin (`v0.22.0` ➔ `v0.23.0`)
+
+### A. Major Upgrades (Pembaruan Utama Arsitektur)
+
+1. **QuickPick Command & Session Palette (`⌘K` / `Ctrl+K`)**
+   - **Apa ini:** Palet pencarian cepat terpadu dengan dukungan *fuzzy matching*, ranking multi-kata, dan navigasi penuh lewat keyboard (`#13652`, `#13644`).
+   - **Keunggulan:** Memungkinkan perpindahan antar-sesi, pencarian perintah, dan navigasi menu secara instan tanpa menyentuh mouse.
+
+2. **Unified Settings Search Catalog & Refactoring**
+   - **Apa ini:** Seluruh halaman dan form pengaturan (Harnesses, Custom Agents, Credentials, Policies, Sharing, Members, Sandbox Integrations) kini dirender melalui katalog pencarian terpusat (`SettingsPage` refactor).
+   - **Fungsi:** Mendukung fitur pencarian pengaturan instan dan menjaga konsistensi UI di seluruh bagian Settings.
+
+3. **Dynamic Host-to-Sandbox Migration & Permission Mode Control**
+   - **Host-to-Sandbox (`#11507`):** Kemampuan memindahkan sesi yang sedang berjalan dari runner host lokal ke sandbox baru.
+   - **Permission Mode pada Sub-Agent (`#13721`):** Tool `sys_session_create` kini dapat mengatur *permission mode* langsung saat membuat sesi sub-agen baru.
+
+### B. Minor Upgrades & UX Improvements (Peningkatan Antarmuka)
+
+1. **Message Queue pada Busy Grid Cell (`#14350`)**: Pengguna dapat mengetik dan mengantrekan pesan baru langsung ke cell agen yang masih sibuk bekerja di tampilan Grid.
+2. **Workspace Content Search by Default (`#13846`)**: Pencarian isi file (*full-text content search*) di dalam workspace aktif otomatis tanpa perlu konfigurasi manual.
+3. **Clickable `omnigent://` Session Links (`#13543`)**: Tautan internal ke sesi lain yang disebut di dalam balon chat kini bisa langsung diklik untuk membuka sesi tujuan.
+4. **Local PR Review Comments Context (`#12319`)**: Komentar review Pull Request lokal otomatis disuntikkan ke konteks percakapan agen.
+5. **Browser Admin View Toggle (`#13650`)**: Admin memiliki kontrol cepat (*effective admin toggle*) untuk melihat antarmuka dari sudut pandang user biasa maupun admin.
+6. **Playback Video Attachments di Tab Pull Requests (`#13701`)**: Dukungan pemutaran video lampiran GitHub langsung di dalam tab Pull Requests.
+
+### C. Performance & Bug Fixes (Stabilitas Sistem)
+
+1. **Tunnel Renewal Otomatis (`#9096`)**: WebSocket runner tunnel melakukan pembaruan (*renewal*) sebelum masa berlaku proxy habis.
+2. **Process Tree Teardown pada Probe Timeout (`#9542`)**: Menghentikan seluruh pohon proses (*process tree*) jika probe readiness harness mengalami timeout agar tidak meninggalkan proses zombie.
+3. **Peningkatan Stabilitas Native Codex & Claude**: Perbaikan kartu jawaban asinkron Codex (`#12600`), penjagaan input saat pre-turn settings gagal (`#13475`), dan pengiriman hasil akhir Stop hook Claude-native ke parent session (`#8979`).
+4. **DB Read-Only Optimization (`#13480`)**: Sesi managed database read-only kini ditutup dengan single `ROLLBACK` untuk menekan overhead koneksi database.
+
+---
+
+## 📜 3. Riwayat Pembaruan Sebelumnya (`v0.21.0` ➔ `v0.22.0`)
 
 Upstream menghadirkan **489 commit pembaruan** yang terbagi menjadi pembaruan besar (*Major*), pembaruan fitur (*Minor*), dan perbaikan stabilitas (*Bug Fixes & Performance*):
 
